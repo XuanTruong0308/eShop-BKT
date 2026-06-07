@@ -1,0 +1,91 @@
+.dropdown-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #FFF;
+    min-width: 8rem;
+    box-shadow: 0 0.25rem 0.5rem 0 rgba(0, 0, 0, 0.2);
+    z-index: 1;
+}
+
+.dropdown-item {
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    display: block;
+    color: #000;
+}
+
+.dropdown-item:hover {
+    background-color: #ddd;
+}
+
+.dropdown-menu:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown-item button {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    width: 100%;
+    padding: 0;
+    text-align: left;
+}
+
+.rank-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-radius: 0.25rem;
+    margin-right: 0.5rem;
+    text-transform: uppercase;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.rank-badge.nor {
+    background-color: #E2E8F0;
+    color: #4A5568;
+}
+
+.rank-badge.platium {
+    background: linear-gradient(135deg, #E2E8F0 0%, #CBD5E0 100%);
+    color: #2D3748;
+    border: 1px solid #A0AEC0;
+}
+
+.rank-badge.dimond {
+    background: linear-gradient(135deg, #9DECF9 0%, #0BC5EA 100%);
+    color: #086F83;
+}
+
+.rank-badge.vip {
+    background: linear-gradient(135deg, #B794F4 0%, #805AD5 100%);
+    color: #FFF;
+}
+
+.rank-badge.svip {
+    background: linear-gradient(135deg, #FBD38D 0%, #DD6B20 100%);
+    color: #FFF;
+    animation: badge-pulse 2s infinite;
+}
+
+@keyframes badge-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(221, 107, 32, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(221, 107, 32, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(221, 107, 32, 0);
+    }
+}

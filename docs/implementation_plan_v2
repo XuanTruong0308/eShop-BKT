@@ -1,0 +1,106 @@
+# Plan: Persist Loyalty Rank with PostgreSQL and Redis Cache
+
+We will migrate the simulated in-memory `LoyaltyDb` in `Discount.API` to use **PostgreSQL** for persistent writing (long-term database) and **Redis** for high-performance reading (caching).
+
+## User Review Required
+
+> [!IMPORTANT]
+> - We will create a new PostgreSQL database named `discountdb` to isolate the loyalty data.
+> - We will use the built-in .NET Aspire integrations (`Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` and `Aspire.StackExchange.Redis`) to simplify setup.
+
+---
+
+## Proposed Changes
+
+### 1. eShop.AppHost
+#### [MODIFY] [Program.cs](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/eShop.AppHost/Program.cs)
+- Add a new database `discountdb`:
+  ```csharp
+  var discountDb = postgres.AddDatabase("discountdb");
+  ```
+- Update `discount-api` references:
+  ```csharp
+  var discountApi = builder
+      .AddProject<Projects.Discount_API>("discount-api")
+      .WithReference(discountDb)
+      .WithReference(redis)
+      .WithReference(rabbitMq)
+      .WaitFor(rabbitMq);
+  ```
+
+---
+
+### 2. Discount.API
+#### [MODIFY] [Discount.API.csproj](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/Discount.API/Discount.API.csproj)
+- Add NuGet package references:
+  ```xml
+  <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.2.0" />
+  <PackageReference Include="Aspire.StackExchange.Redis" Version="13.2.0" />
+  ```
+
+#### [NEW] [CustomerLoyalty.cs](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/Discount.API/CustomerLoyalty.cs)
+- Define the Entity model for database:
+  ```csharp
+  namespace Discount.API;
+
+  public class CustomerLoyalty
+  {
+      public string Id { get; set; } = null!; // Customer Guid
+      public decimal TotalSpent { get; set; }
+      public string Rank { get; set; } = "NOR";
+  }
+  ```
+
+#### [NEW] [LoyaltyDbContext.cs](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/Discount.API/LoyaltyDbContext.cs)
+- Create EF Core DbContext:
+  ```csharp
+  using Microsoft.EntityFrameworkCore;
+
+  namespace Discount.API;
+
+  public class LoyaltyDbContext(DbContextOptions<LoyaltyDbContext> options) : DbContext(options)
+  {
+      public DbSet<CustomerLoyalty> CustomerLoyalties => Set<CustomerLoyalty>();
+
+      protected override void OnModelCreating(ModelBuilder modelBuilder)
+      {
+          modelBuilder.Entity<CustomerLoyalty>().HasKey(x => x.Id);
+      }
+  }
+  ```
+
+#### [MODIFY] [Program.cs](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/Discount.API/Program.cs)
+- Register PostgreSQL DbContext and Redis:
+  ```csharp
+  builder.AddNpgsqlDbContext<LoyaltyDbContext>("discountdb");
+  builder.AddRedisClient("redis");
+  ```
+- Add DB migration/initialization on startup:
+  ```csharp
+  using (var scope = app.Services.CreateScope())
+  {
+      var context = scope.ServiceProvider.GetRequiredService<LoyaltyDbContext>();
+      await context.Database.EnsureCreatedAsync();
+  }
+  ```
+- Update GET `/api/v1/discount` endpoint to read from Redis cache first, falling back to PostgreSQL:
+  - Cache Key: `loyalty:{customerId}`
+  - If cache hit: return cached rank data.
+  - If cache miss: query Postgres, save to Redis, and return.
+
+#### [MODIFY] [OrderStatusChangedToPaidIntegrationEventHandlers.cs](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/Discount.API/IntegrationEvents/EventHandling/OrderStatusChangedToPaidIntegrationEventHandlers.cs)
+- Inject `LoyaltyDbContext` and `IConnectionMultiplexer` (Redis client).
+- Update spent total and recalculate rank.
+- Save changes to PostgreSQL.
+- Write/update the new rank to Redis cache.
+
+---
+
+## Verification Plan
+
+### Automated/Manual Verification
+1. Run `dotnet run --project src/eShop.AppHost`.
+2. Open Blazor WebApp, log in as Alice, place a `$1299.90` order, and pay.
+3. Verify that the console logs for `Discount.API` show database updates.
+4. Verify on UI that the Rank Tag shows **SVIP** next to `alice`'s name.
+5. Kill/Restart `Discount.API` and verify that the Rank Tag **persists** as **SVIP** upon reloading the page.
