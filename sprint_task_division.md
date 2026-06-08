@@ -8,11 +8,11 @@ Tài liệu này hướng dẫn cách tổ chức buổi Planning (Thứ 2) và 
 Do Thứ 2 dành hoàn toàn cho Planning, cả đội chỉ có **4 ngày thực tế để code** (Thứ 3 ➔ Thứ 6).
 * **Thời gian của mỗi thành viên:** 4 ngày × 8 giờ = **32 giờ**.
 * **Quy ước Story Points mới:**
-  * **1 Point = 4 giờ làm việc** (Nửa ngày làm việc tập trung).
-  * **2 Points = 8 giờ làm việc** (1 ngày làm việc).
-  * **3 Points = 12 giờ làm việc** (1.5 ngày làm việc).
-  * **5 Points = 20 giờ làm việc** (2.5 ngày làm việc).
-* **Tổng Capacity tối đa của mỗi người:** **8 Story Points (32 giờ)**.
+  * **1 Point = 2 giờ làm việc** .
+  * **2 Points = 4 giờ làm việc**
+  * **3 Points = 6 giờ làm việc** 
+  * **5 Points = 10 giờ làm việc** 
+* **Tổng Capacity tối đa của mỗi người:** **8 Story Points (16 giờ)**.
 KW
 ---
 
@@ -45,12 +45,12 @@ KW
 
 | STT | Tên Task (Agile Story) | Mô tả chi tiết & Giới hạn Scope để đạt MVP | Độ khó | Story Points | Ước lượng | Ưu tiên | Trạng thái |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| 3.1 | Thiết kế Loyalty & Voucher Schema | Tạo bảng `Voucher` và thêm cột `LoyaltyPoints`, `LastPurchaseDate` vào bảng thành viên hiện tại. | Dễ | 1 | 4 giờ | **P0** | Chưa thực hiện |
-| 3.2 | API đổi điểm lấy Voucher | Phát triển endpoint `/api/v1/discount/exchange` trừ điểm và sinh mã Voucher $10. | Trung bình | 2 | 8 giờ | **P0** | Chưa thực hiện |
-| 3.3 | Áp dụng Voucher tại Checkout | Hiển thị ô nhập mã Voucher ở trang Checkout và trừ tiền trực tiếp trên giỏ hàng. | Trung bình | 2 | 8 giờ | **P0** | Chưa thực hiện |
-| 3.4 | Background Worker hạ hạng (Decay) | Viết `HostedService` quét định kỳ đơn giản khi khởi chạy app hoặc kích hoạt bằng tay, không dùng Quartz.NET. | Trung bình | 2 | 8 giờ | **P1** | Chưa thực hiện |
-| 3.5 | Đồng bộ hóa dữ liệu (Memory Cache) | Sử dụng Memory Cache để lưu hạng thành viên trước khi nâng cấp lên Redis Cache nếu dư thời gian. | Dễ | 1 | 4 giờ | **P2** | Chưa thực hiện |
-| **Tổng**| | **Chỉ số an toàn: Đạt giới hạn Capacity** | | **8 Points** | **32 giờ** | | |
+| 3.1 | Thiết kế Loyalty & Voucher Schema | Tạo bảng `Voucher` và thêm cột `LoyaltyPoints`, `LastPurchaseDate` vào bảng thành viên hiện tại. | Dễ | 1 | 2 giờ | **P0** | Chưa thực hiện |
+| 3.2 | API đổi điểm lấy Voucher | Phát triển endpoint `/api/v1/discount/exchange` trừ điểm và sinh mã Voucher $10. | Trung bình | 2 | 4 giờ | **P0** | Chưa thực hiện |
+| 3.3 | Áp dụng Voucher tại Checkout | Hiển thị ô nhập mã Voucher ở trang Checkout và trừ tiền trực tiếp trên giỏ hàng. | Trung bình | 2 | 4 giờ | **P0** | Chưa thực hiện |
+| 3.4 | Background Worker hạ hạng (Decay) | Viết `HostedService` quét định kỳ đơn giản khi khởi chạy app hoặc kích hoạt bằng tay, không dùng Quartz.NET. | Trung bình | 2 | 4 giờ | **P1** | Chưa thực hiện |
+| 3.5 | Đồng bộ hóa dữ liệu (Memory Cache) | Sử dụng Memory Cache để lưu hạng thành viên trước khi nâng cấp lên Redis Cache nếu dư thời gian. | Dễ | 1 | 2 giờ | **P2** | Chưa thực hiện |
+| **Tổng**| | **Chỉ số an toàn: Đạt giới hạn Capacity** | | **8 Points** | **16 giờ** | | |
 
 ---
 
@@ -59,12 +59,12 @@ KW
 
 | STT | Tên Task (Agile Story) | Mô tả chi tiết & Giới hạn Scope để đạt MVP | Độ khó | Story Points | Ước lượng | Ưu tiên | Trạng thái |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| 2.1 | Giám sát Prometheus & Grafana | Cấu hình Prometheus cào metrics hiệu năng hệ thống và dựng Grafana Dashboard hiển thị TPS, tỷ lệ lỗi 5xx. | Trung bình | 2 | 8 giờ | **P0** | Chưa thực hiện |
-| 2.2 | API Bơm Lỗi (Chaos Controller) | Viết API `/api/v1/chaos` bật/tắt giả lập lỗi HTTP 500 ngẫu nhiên (chưa cần làm trễ Latency). | Dễ | 1 | 4 giờ | **P0** | Chưa thực hiện |
-| 2.3 | **[Cải tiến]** Chaos/Outage trong Payment | Giả lập lỗi ngẫu nhiên cổng thanh toán trực tiếp trong Event Handler của `PaymentProcessor` qua cấu hình môi trường. | Trung bình | 2 | 8 giờ | **P1** | Chưa thực hiện |
-| 2.4 | **[Cải tiến]** Telemetry cho Payment | Sử dụng OTel Metrics trong `PaymentProcessor` để đếm số giao dịch thành công/thất bại và hiển thị lên Grafana. | Dễ | 1 | 4 giờ | **P2** | Chưa thực hiện |
-| 2.5 | Cấu hình Polly Resilience cho WebApp | Sử dụng Polly Retry cơ bản trên WebApp khi gọi API giỏ hàng/thanh toán để tự khắc phục lỗi 500. | Trung bình | 2 | 8 giờ | **P1** | Chưa thực hiện |
-| **Tổng**| | **Chỉ số an toàn: Đạt giới hạn Capacity** | | **8 Points** | **32 giờ** | | |
+| 2.1 | Giám sát Prometheus & Grafana | Cấu hình Prometheus cào metrics hiệu năng hệ thống và dựng Grafana Dashboard hiển thị TPS, tỷ lệ lỗi 5xx. | Trung bình | 2 | 4 giờ | **P0** | Chưa thực hiện |
+| 2.2 | API Bơm Lỗi (Chaos Controller) | Viết API `/api/v1/chaos` bật/tắt giả lập lỗi HTTP 500 ngẫu nhiên (chưa cần làm trễ Latency). | Dễ | 1 | 2 giờ | **P0** | Chưa thực hiện |
+| 2.3 | **[Cải tiến]** Chaos/Outage trong Payment | Giả lập lỗi ngẫu nhiên cổng thanh toán trực tiếp trong Event Handler của `PaymentProcessor` qua cấu hình môi trường. | Trung bình | 2 | 4 giờ | **P1** | Chưa thực hiện |
+| 2.4 | **[Cải tiến]** Telemetry cho Payment | Sử dụng OTel Metrics trong `PaymentProcessor` để đếm số giao dịch thành công/thất bại và hiển thị lên Grafana. | Dễ | 1 | 2 giờ | **P2** | Chưa thực hiện |
+| 2.5 | Cấu hình Polly Resilience cho WebApp | Sử dụng Polly Retry cơ bản trên WebApp khi gọi API giỏ hàng/thanh toán để tự khắc phục lỗi 500. | Trung bình | 2 | 4 giờ | **P1** | Chưa thực hiện |
+| **Tổng**| | **Chỉ số an toàn: Đạt giới hạn Capacity** | | **8 Points** | **16 giờ** | | |
 
 ---
 
