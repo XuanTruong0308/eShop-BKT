@@ -79,8 +79,8 @@ KW
 
 ### 2. Các câu hỏi chất vấn khi Planning (Mẫu câu cho PM)
 Khi Bảo hoặc Khải đưa ra estimate cho một Task, Trường hãy "ép ngược" bằng các câu hỏi sau:
-* *“Tại sao việc cập nhật CSDL lại mất tận 8 tiếng (2 points)? Anh thấy cấu trúc bảng đã có sẵn, chỉ cần thêm 2 cột và chạy migration. Liệu 4 tiếng (1 point) có xong không? Em đang vướng ở bước nào?”*
-* *“Khải ước lượng việc cấu hình Polly mất 5 points (20 tiếng) là quá nhiều. Chúng ta chỉ cần áp dụng cơ chế Retry đơn giản của Polly lên HttpClient trong WebApp. Có thể cắt bớt Circuit Breaker và hạ xuống 2 points (8 tiếng) được không?”*
+* *“Tại sao việc cập nhật CSDL lại mất tận 4 tiếng (2 points)? Anh thấy cấu trúc bảng đã có sẵn, chỉ cần thêm 2 cột và chạy migration. Liệu 2 tiếng (1 point) có xong không? Em đang vướng ở bước nào?”*
+* *“Khải ước lượng việc cấu hình Polly mất 5 points (10 tiếng) là quá nhiều. Chúng ta chỉ cần áp dụng cơ chế Retry đơn giản của Polly lên HttpClient trong WebApp. Có thể cắt bớt Circuit Breaker và hạ xuống 2 points (4 tiếng) được không?”*
 * *“Dự án này là thử nghiệm nội bộ, anh không cần hệ thống bảo mật hay mã hóa cho Voucher ở Sprint này. Bảo hãy cắt bớt phần xác thực token phức tạp để đưa API đổi điểm về đúng 2 points.”*
 
 ### 3. Kỹ thuật Planning Poker (Thực hành ước lượng)
