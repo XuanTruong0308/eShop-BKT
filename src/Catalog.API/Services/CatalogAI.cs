@@ -11,10 +11,15 @@ public sealed class CatalogAI : ICatalogAI
 
     /// <summary>The web host environment.</summary>
     private readonly IWebHostEnvironment _environment;
+
     /// <summary>Logger for use in AI operations.</summary>
     private readonly ILogger _logger;
 
-    public CatalogAI(IWebHostEnvironment environment, ILogger<CatalogAI> logger, IEmbeddingGenerator<string, Embedding<float>>? embeddingGenerator = null)
+    public CatalogAI(
+        IWebHostEnvironment environment,
+        ILogger<CatalogAI> logger,
+        IEmbeddingGenerator<string, Embedding<float>>? embeddingGenerator = null
+    )
     {
         _embeddingGenerator = embeddingGenerator;
         _environment = environment;
@@ -26,23 +31,32 @@ public sealed class CatalogAI : ICatalogAI
 
     /// <inheritdoc/>
     public ValueTask<Vector?> GetEmbeddingAsync(CatalogItem item) =>
-        IsEnabled ?
-            GetEmbeddingAsync(CatalogItemToString(item)) :
-            ValueTask.FromResult<Vector?>(null);
+        IsEnabled
+            ? GetEmbeddingAsync(CatalogItemToString(item))
+            : ValueTask.FromResult<Vector?>(null);
 
     /// <inheritdoc/>
-    public async ValueTask<IReadOnlyList<Vector>?> GetEmbeddingsAsync(IEnumerable<CatalogItem> items)
+    public async ValueTask<IReadOnlyList<Vector>?> GetEmbeddingsAsync(
+        IEnumerable<CatalogItem> items
+    )
     {
         if (IsEnabled)
         {
             long timestamp = Stopwatch.GetTimestamp();
 
-            GeneratedEmbeddings<Embedding<float>> embeddings = await _embeddingGenerator!.GenerateAsync(items.Select(CatalogItemToString));
-            var results = embeddings.Select(m => new Vector(m.Vector[0..EmbeddingDimensions])).ToList();
+            GeneratedEmbeddings<Embedding<float>> embeddings =
+                await _embeddingGenerator!.GenerateAsync(items.Select(CatalogItemToString));
+            var results = embeddings
+                .Select(m => new Vector(m.Vector[0..EmbeddingDimensions]))
+                .ToList();
 
             if (_logger.IsEnabled(LogLevel.Trace))
             {
-                _logger.LogTrace("Generated {EmbeddingsCount} embeddings in {ElapsedMilliseconds}s", results.Count, Stopwatch.GetElapsedTime(timestamp).TotalSeconds);
+                _logger.LogTrace(
+                    "Generated {EmbeddingsCount} embeddings in {ElapsedMilliseconds}s",
+                    results.Count,
+                    Stopwatch.GetElapsedTime(timestamp).TotalSeconds
+                );
             }
 
             return results;
@@ -63,7 +77,11 @@ public sealed class CatalogAI : ICatalogAI
 
             if (_logger.IsEnabled(LogLevel.Trace))
             {
-                _logger.LogTrace("Generated embedding in {ElapsedMilliseconds}s: '{Text}'", Stopwatch.GetElapsedTime(timestamp).TotalSeconds, text);
+                _logger.LogTrace(
+                    "Generated embedding in {ElapsedMilliseconds}s: '{Text}'",
+                    Stopwatch.GetElapsedTime(timestamp).TotalSeconds,
+                    text
+                );
             }
 
             return new Vector(embedding);
@@ -72,5 +90,6 @@ public sealed class CatalogAI : ICatalogAI
         return null;
     }
 
-    private static string CatalogItemToString(CatalogItem item) => $"{item.Name} {item.Description}";
+    private static string CatalogItemToString(CatalogItem item) =>
+        $"{item.Name} {item.Description}";
 }
