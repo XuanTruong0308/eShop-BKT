@@ -1,19 +1,3 @@
-
-Claude a terminé la réponse.
-https://github.com/XuanTruong0308/eShop-BKT
-giúp tôi tạo ra 5 branch, branch main để upload tất cả file .md, branch core (là full src), branch Khải là để cho Dev Khải upload những task mà Khải đã update , branch Bảo, branch Trường và đưa ra lệnh để up các file md lên main, update lên core, rồi một file md để hướng dẫn từng dev từ lúc clone core -> change branch của mình và sửa đổi và hướng dẫn Trường gộp sau khi kết thúc sprint
-
-5:40 PM
-
-Check frontend design skill
-Check frontend design skill
-Tôi sẽ tạo cho bạn đầy đủ: script tạo 5 branch trên GitHub và file hướng dẫn chi tiết cho từng dev.
-
-
-2 fichiers créés, a exécuté une commande, lu un fichier
-2 fichiers créés, a exécuté une commande, lu un fichier
-Mình đã tạo xong 2 file cho bạn:
-
 📁 File 1: setup-branches.sh — Script tạo 5 branch
 Chạy một lần duy nhất để thiết lập toàn bộ cấu trúc branch:
 
