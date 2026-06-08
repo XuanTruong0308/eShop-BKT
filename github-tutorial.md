@@ -148,223 +148,155 @@ Git workflow · MD
 Repo: https://github.com/XuanTruong0308/eShop-BKT
 Người quản lý merge: Trường
 
-🗂️ Cấu trúc Branch
-main     → Chứa toàn bộ file tài liệu (.md)
-core     → Full source code (nguồn gốc, ổn định)
-Khai     → Dev Khải làm việc (tạo từ core)
-Bao      → Dev Bảo làm việc  (tạo từ core)
-Truong   → Dev Trường làm việc (tạo từ core) + quản lý merge
+🗂️ Cấu trúc Branch (Quy trình Git Flow mới)
+
+1. Repo eShop-Docs (Tài liệu & Báo cáo):
+   * main        → Chứa toàn bộ file tài liệu (.md) mô tả hệ thống gốc.
+   * report      → Chứa toàn bộ các báo cáo kết quả (Sprint Report, Test Report).
+   
+2. Repo eShop-main (Mã nguồn):
+   * core        → Mã nguồn ổn định nhất (Production-ready).
+   * Development → Nhánh tích hợp chung (mọi feature branch sẽ gộp vào đây trước).
+   * feature/*   → Các nhánh tính năng ngắn hạn (Ví dụ: `feature/loyalty-voucher`, `feature/devops-chaos`) tạo ra từ `Development`.
+
 ⚙️ Cài đặt Git lần đầu (chỉ làm 1 lần)
 Nếu máy chưa cấu hình Git, chạy 2 lệnh này trước:
 
-powershell
+```powershell
 git config --global user.name "Tên của bạn"
 git config --global user.email "email@example.com"
-📤 Phần 1: Trường – Push source code lên core lần đầu tiên
-Thực hiện khi chưa có gì trên remote, đây là lần push đầu tiên.
+```
 
-powershell
-# 1. Mở thư mục chứa source code của bạn (dùng PowerShell)
-cd "đường-dẫn-tới-thư-mục-source"
-# Ví dụ: cd "C:\Users\Truong\Desktop\eShop-BKT"
+📤 Phần 1: Trường – Tạo các nhánh cơ sở ban đầu
+Chạy trên máy để tạo các nhánh và push lên để các dev khác lấy làm việc:
 
-# 2. Khởi tạo git trong thư mục (nếu chưa có)
-git init
-
-# 3. Kết nối với remote repo trên GitHub
-git remote add origin https://github.com/XuanTruong0308/eShop-BKT.git
-
-# 4. Kiểm tra đã kết nối chưa
-git remote -v
-
-# 5. Stage toàn bộ source code
-git add .
-
-# 6. Commit lần đầu
-git commit -m "core: upload full source code lan dau"
-
-# 7. Đổi tên branch hiện tại thành core
-git branch -M core
-
-# 8. Push lên remote (lần đầu dùng -u để set upstream)
-git push -u origin core
-Lưu ý: GitHub sẽ hỏi đăng nhập. Dùng Personal Access Token thay password
-(GitHub → Settings → Developer Settings → Personal Access Tokens → Generate new token)
-
-📄 Phần 2: Trường – Push file .md lên main lần đầu tiên
-Thực hiện sau khi đã push core xong. Làm trong cùng thư mục project.
-
-powershell
-# 1. Tạo branch main và chuyển sang
-git checkout -b main
-
-# 2. Xóa toàn bộ file source (main chỉ chứa .md, không chứa code)
-#    Giữ lại chỉ các file .md, xóa hết file code
-
-# --- HOẶC cách đơn giản hơn: ---
-# Chỉ copy file .md vào một thư mục trống, rồi làm từ đầu:
-
-# 3. Stage tất cả file .md
-git add *.md
-
-# 4. Commit
-git commit -m "docs: upload tai lieu sprint 1"
-
-# 5. Push lên remote
-git push -u origin main
-Mẹo đơn giản hơn: Tạo một thư mục mới chỉ chứa file .md, rồi làm lại từ git init → git remote add → push lên branch main riêng.
-
-📤 Phần 3: Cập nhật thêm (từ lần 2 trở đi)
-Thêm code mới vào core
-powershell
+```powershell
+# Tại thư mục eShop-main:
 git checkout core
-git pull origin core
-# Chỉnh sửa / thêm file...
-git add .
-git commit -m "core: [mô tả thay đổi]"
-git push origin core
-Thêm file .md mới vào main
-powershell
+git checkout -b Development
+git push -u origin Development
+
+# Tại thư mục eShop-Docs:
 git checkout main
-git pull origin main
-# Copy file .md mới vào...
+git checkout -b report
+git push -u origin report
+```
+
+📄 Phần 2: Cập nhật tài liệu và báo cáo (.md)
+* Nhánh `main`: Dành cho tài liệu hệ thống chung.
+* Nhánh `report`: Dành cho các báo cáo kết quả (như báo cáo lỗi, báo cáo sprint).
+
+```powershell
+# Lấy tài liệu mới nhất
+git checkout main (hoặc git checkout report)
+git pull origin main (hoặc git pull origin report)
+
+# Sửa đổi/Thêm file .md
 git add *.md
-git commit -m "docs: [mô tả tài liệu]"
-git push origin main
-👨‍💻 Phần 4: Hướng dẫn từng Dev (Khải / Bảo / Trường)
-Bước 1 – Cài đặt Git lần đầu (chỉ làm 1 lần)
-powershell
-git config --global user.name "Tên của bạn"
-git config --global user.email "email@example.com"
-Bước 2 – Clone repo về máy
-powershell
+git commit -m "docs/report: [tên tài liệu/báo cáo]"
+git push origin main (hoặc git push origin report)
+```
+
+👨‍💻 Phần 3: Hướng dẫn từng Dev phát triển tính năng (Khải / Bảo / Trường)
+Mỗi dev KHÔNG làm việc trực tiếp trên Development hay core. Mỗi task/tính năng phải làm việc trên một nhánh feature riêng biệt:
+
+Bước 1 – Clone repo và lấy nhánh Development mới nhất
+```powershell
 git clone https://github.com/XuanTruong0308/eShop-BKT.git
 cd eShop-BKT
-Bước 3 – Lấy source code từ branch core
-powershell
-# Fetch tất cả branch từ remote về
 git fetch --all
+git checkout Development
+git pull origin Development
+```
 
-# Chuyển sang core để lấy source gốc
+Bước 2 – Tạo nhánh feature từ Development để làm việc
+Đặt tên nhánh theo cú pháp: `feature/ten-tinh-nang`
+```powershell
+# Ví dụ Bảo làm Loyalty:
+git checkout -b feature/loyalty-voucher
+
+# Ví dụ Khải làm Chaos & Payment:
+git checkout -b feature/devops-chaos
+```
+
+Bước 3 – Lập trình và Commit
+```powershell
+git add .
+git commit -m "feat: [tên task] - [mô tả ngắn gọn]"
+# Ví dụ: git commit -m "feat: viet API doi diem lay voucher"
+```
+
+Bước 4 – Push nhánh feature lên GitHub
+```powershell
+# Bảo:
+git push -u origin feature/loyalty-voucher
+
+# Khải:
+git push -u origin feature/devops-chaos
+```
+
+Bước 5 – Tạo Pull Request (PR) trên web GitHub
+1. Vào GitHub repo: `https://github.com/XuanTruong0308/eShop-BKT`.
+2. Hệ thống sẽ hiện thông báo *"feature/ten-tinh-nang had recent pushes..."*. Click **Compare & pull request**.
+3. **Lưu ý đặc biệt:** Chọn nhánh đích là **`base: Development`** (Tuyệt đối không chọn `core` hay `main`).
+4. Nhập tiêu đề PR và gửi để Trường review code.
+
+---
+
+🔀 Phần 4: Hướng dẫn Trường – Review PR & Gộp code cuối Sprint
+
+Bước 1 – Duyệt và Merge Pull Request trên GitHub
+Trường vào tab **Pull Requests** trên GitHub:
+1. Xem code thay đổi của Khải và Bảo.
+2. Nếu không có vấn đề gì và không có conflict, nhấn **Merge pull request** để gộp nhánh `feature/*` vào nhánh `Development`.
+
+Bước 2 – Merge nhánh Development vào core (Cuối Sprint)
+Khi tất cả các PR của các dev đã được gộp vào `Development` thành công và đã chạy thử ổn định:
+```powershell
+# Chuyển sang core và kéo mới nhất
 git checkout core
 git pull origin core
-Bước 4 – Chuyển sang branch cá nhân
-Mỗi dev CHỈ làm việc trên branch của mình, không được đụng branch khác.
 
-Dev Khải:
+# Merge Development vào core
+git merge Development --no-ff -m "merge: hoan thanh sprint 1 - tich hop toan bo code"
 
-powershell
-git checkout Khai
-git pull origin Khai
-Dev Bảo:
-
-powershell
-git checkout Bao
-git pull origin Bao
-Dev Trường:
-
-powershell
-git checkout Truong
-git pull origin Truong
-Bước 5 – Làm việc & commit task
-powershell
-# Sau khi code xong một task
-git add .
-git commit -m "feat: [ten task] - [mo ta ngan gon]"
-
-# Ví dụ:
-# git commit -m "feat: them API dang nhap nguoi dung"
-# git commit -m "fix: sua loi hien thi gio hang"
-Bước 6 – Push lên branch cá nhân
-powershell
-# Dev Khải:
-git push origin Khai
-
-# Dev Bảo:
-git push origin Bao
-
-# Dev Trường:
-git push origin Truong
-Bước 7 – Đồng bộ khi core có code mới
-Khi Trường thông báo core được cập nhật, các dev đồng bộ vào branch của mình:
-
-powershell
-git fetch origin
-
-# Dev Khải (Bảo và Trường làm tương tự với branch của mình)
-git checkout Khai
-git merge origin/core
-git push origin Khai
-🔀 Phần 5: Hướng dẫn Trường – Merge cuối Sprint
-Cuối sprint, Trường gộp code của cả team vào core.
-
-Bước 1 – Kéo code mới nhất của mọi người về
-powershell
-git fetch --all
-git branch -a   # Xem tất cả branch
-Bước 2 – Chuyển sang core
-powershell
-git checkout core
-git pull origin core
-Bước 3 – Merge từng branch vào core
-powershell
-# Merge Khải
-git merge origin/Khai --no-ff -m "merge: sprint [so] - tich hop code cua Khai"
-
-# Merge Bảo
-git merge origin/Bao --no-ff -m "merge: sprint [so] - tich hop code cua Bao"
-
-# Merge Trường
-git merge origin/Truong --no-ff -m "merge: sprint [so] - tich hop code cua Truong"
-Nếu có conflict:
-
-powershell
-# Mở file bị conflict, tìm dấu <<<<< và sửa thủ công
-git add .
-git commit -m "fix merge: giai quyet conflict"
-Bước 4 – Push core đã gộp lên remote
-powershell
+# Push core ổn định lên GitHub
 git push origin core
-Bước 5 – Đồng bộ lại branch dev cho sprint mới
-powershell
-git checkout Khai
-git merge origin/core --no-ff -m "sync: dong bo Khai tu core sau sprint [so]"
-git push origin Khai
+```
 
-git checkout Bao
-git merge origin/core --no-ff -m "sync: dong bo Bao tu core sau sprint [so]"
-git push origin Bao
+Bước 3 – Đồng bộ lại nhánh Development cho Sprint tiếp theo
+```powershell
+git checkout Development
+git merge core
+git push origin Development
+```
 
-git checkout Truong
-git merge origin/core --no-ff -m "sync: dong bo Truong tu core sau sprint [so]"
-git push origin Truong
 ⚠️ Quy tắc chung (bắt buộc)
-Quy tắc	Mô tả
-🚫 Không push thẳng vào core	Chỉ Trường mới được merge vào core
-🚫 Không push thẳng vào main	Chỉ dùng main cho file .md
-✅ Commit message rõ ràng	Format: feat/fix/docs/merge: [mô tả]
-✅ Pull trước khi làm việc	Luôn git pull trước khi bắt đầu code
-✅ Thông báo khi push xong	Báo nhóm khi đã push task hoàn thành
-🆘 Xử lý lỗi thường gặp
-Bị conflict khi merge
-powershell
-git status   # Xem file nào bị conflict
-# Mở file, tìm và sửa phần có dấu <<<<, ====, >>>>
-git add .
-git commit -m "fix: giai quyet conflict"
-Nhỡ commit sai branch
-powershell
-git reset --soft HEAD~1   # Undo commit cuối, giữ nguyên file
-git stash                 # Cất file tạm thời
-git checkout [dung-branch]
-git stash pop             # Lấy file ra
-git add .
-git commit -m "..."
-Xem lịch sử commit
-powershell
-git log --oneline --graph --all
-Kiểm tra đang ở branch nào
-powershell
-git branch
+* **Không push thẳng vào core hoặc Development:** Mọi code mới phải đi qua nhánh `feature/*` và thông qua Pull Request.
+* **Không merge code vào main/report:** Nhánh `main` và `report` chỉ dành cho tài liệu và báo cáo `.md`.
+* **Pull trước khi tạo nhánh mới:** Luôn luôn cập nhật Development mới nhất trước khi tạo nhánh feature.
+
+🆘 Cẩm nang Hướng dẫn Push & Xử lý Lỗi thường gặp (Bản tra cứu nhanh)
+
+Dưới đây là bảng tra cứu các cách push code/tài liệu và hướng dẫn khắc phục chi tiết nếu gặp lỗi tương ứng:
+
+| STT | Cách Push (Luồng chuẩn) | Lệnh thực hiện | Lỗi có thể gặp (Error ABC) | Nguyên nhân chi tiết | Cách khắc phục (Fix XYZ) |
+| :---: | :--- | :--- | :--- | :--- | :--- |
+| **1** | **Push lần đầu tiên** (Đồng bộ nhánh cục bộ lên GitHub) | `git push -u origin [tên-nhánh]` | `fatal: The current branch [name] has no upstream branch` | Nhánh cục bộ chưa được liên kết với bất kỳ nhánh nào trên GitHub. | Chỉ cần thêm cờ `-u` để lưu cấu hình theo dõi:<br>`git push -u origin [tên-nhánh]` |
+| **2** | **Push thông thường** (Sau khi đã liên kết và commit xong) | `git push origin [tên-nhánh]` | `! [rejected] ... (non-fast-forward)` | Nhánh remote trên GitHub đã có các commit mới từ thành viên khác mà máy của bạn chưa cập nhật. | **Bước 1:** Kéo và gộp code mới về trước:<br>`git pull origin [tên-nhánh]` (hoặc `git pull --rebase origin [tên-nhánh]`).<br>**Bước 2:** Xử lý xung đột (nếu có), commit lại.<br>**Bước 3:** Chạy lại lệnh push thường. |
+| **3** | **Force Push (Push ghi đè)** (Chỉ dùng khi đẩy tài liệu mẫu rỗng hoặc sửa đổi lịch sử an toàn) | `git push -f origin [tên-nhánh]` | `remote: error: GH006: Protected branch update failed` | Nhánh bạn đang cố force push (ví dụ `core` hoặc `main`) đã bị bật tính năng bảo vệ trên cài đặt GitHub để tránh mất code. | **Bước 1:** Vào GitHub Settings -> Branches -> Branch Protection Rules.<br>**Bước 2:** Tạm thời tắt cấm force push hoặc phân quyền lại.<br>**Bước 3:** Chạy lại lệnh push.<br>*(Khuyên dùng: Dùng Pull Request thay vì force push)* |
+| **4** | **Push khi lịch sử khác biệt** (Do khởi tạo `git init` cục bộ độc lập với remote) | `git push origin [tên-nhánh]` | `fatal: refusing to merge unrelated histories` | Lịch sử commit của local và remote hoàn toàn khác biệt, không có commit chung gốc. | Chạy lệnh pull cho phép bỏ qua sự khác biệt lịch sử trước khi push:<br>`git pull origin [tên-nhánh] --allow-unrelated-histories` |
+| **5** | **Push khi lỗi xác thực** (Gặp khi đổi tài khoản hoặc lần đầu dùng PAT) | `git push origin [tên-nhánh]` | `fatal: Authentication failed for...` | Token truy cập cá nhân (Personal Access Token - PAT) của bạn hết hạn, nhập sai mật khẩu hoặc bị lỗi cấu hình cache. | **Bước 1:** Lên GitHub -> Settings -> Developer Settings -> PAT -> Tạo token mới.<br>**Bước 2:** Khi Git yêu cầu mật khẩu trên terminal, hãy dán mã token này vào thay cho mật khẩu thường. |
+
+### ⚠️ Các lỗi thao tác cục bộ thường gặp khác
+
+| Tình huống | Cách phát hiện | Nguyên nhân | Hướng dẫn khắc phục chi tiết |
+| :--- | :--- | :--- | :--- |
+| **Bị xung đột (Conflict) khi gộp code** | Khi chạy `git merge` hoặc `git pull` báo: *Conflict... Automatic merge failed* | Cả hai người cùng sửa đổi trên cùng một dòng của một file tin. | **Bước 1:** Xem các file bị lỗi bằng `git status`.<br>**Bước 2:** Mở các file bị lỗi lên, tìm các ký hiệu `<<<<<<<`, `=======`, `>>>>>>>` để chọn giữ lại code đúng.<br>**Bước 3:** Lưu file, chạy: `git add .`<br>**Bước 4:** Hoàn tất gộp: `git commit -m "fix: giai quyet conflict"` |
+| **Lỡ commit nhầm nhánh** | Khi gõ `git branch` phát hiện đang đứng sai nhánh sau khi đã gõ `git commit` | Quên checkout sang nhánh feature cá nhân trước khi sửa code. | **Bước 1:** Hủy commit cuối nhưng giữ nguyên các file đã sửa:<br>`git reset --soft HEAD~1`<br>**Bước 2:** Cất tạm các file đã sửa đi:<br>`git stash`<br>**Bước 3:** Chuyển sang nhánh đúng:<br>`git checkout [nhánh-đúng]`<br>**Bước 4:** Lấy lại các file đã sửa ra:<br>`git stash pop`<br>**Bước 5:** Thực hiện add và commit lại bình thường. |
+
 📌 Liên hệ khi gặp vấn đề: Tag Trường trong nhóm chat hoặc tạo issue trên GitHub.
+
+
+
 
