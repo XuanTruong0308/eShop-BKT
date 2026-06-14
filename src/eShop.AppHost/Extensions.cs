@@ -1,4 +1,4 @@
-﻿using Aspire.Hosting.Eventing;
+using Aspire.Hosting.Eventing;
 using Aspire.Hosting.Lifecycle;
 using Aspire.Hosting.Yarp;
 using Aspire.Hosting.Yarp.Transforms;
@@ -11,7 +11,7 @@ internal enum OpenAITarget
     OpenAI,
     AzureOpenAI,
     AzureOpenAIExisting,
-    AzureOpenAIExistingWithKey
+    AzureOpenAIExistingWithKey,
 }
 
 internal static class Extensions
@@ -19,7 +19,9 @@ internal static class Extensions
     /// <summary>
     /// Adds a hook to set the ASPNETCORE_FORWARDEDHEADERS_ENABLED environment variable to true for all projects in the application.
     /// </summary>
-    public static IDistributedApplicationBuilder AddForwardedHeaders(this IDistributedApplicationBuilder builder)
+    public static IDistributedApplicationBuilder AddForwardedHeaders(
+        this IDistributedApplicationBuilder builder
+    )
     {
         builder.Services.TryAddEventingSubscriber<AddForwardHeadersSubscriber>();
         return builder;
@@ -27,20 +29,29 @@ internal static class Extensions
 
     private class AddForwardHeadersSubscriber : IDistributedApplicationEventingSubscriber
     {
-        public Task SubscribeAsync(IDistributedApplicationEventing eventing, DistributedApplicationExecutionContext executionContext, CancellationToken cancellationToken)
+        public Task SubscribeAsync(
+            IDistributedApplicationEventing eventing,
+            DistributedApplicationExecutionContext executionContext,
+            CancellationToken cancellationToken
+        )
         {
-            eventing.Subscribe<BeforeStartEvent>((@event, ct) =>
-            {
-                foreach (var p in @event.Model.GetProjectResources())
+            eventing.Subscribe<BeforeStartEvent>(
+                (@event, ct) =>
                 {
-                    p.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
+                    foreach (var p in @event.Model.GetProjectResources())
                     {
-                        context.EnvironmentVariables["ASPNETCORE_FORWARDEDHEADERS_ENABLED"] = "true";
-                    }));
+                        p.Annotations.Add(
+                            new EnvironmentCallbackAnnotation(context =>
+                            {
+                                context.EnvironmentVariables[
+                                    "ASPNETCORE_FORWARDEDHEADERS_ENABLED"
+                                ] = "true";
+                            })
+                        );
+                    }
+                    return Task.CompletedTask;
                 }
-
-                return Task.CompletedTask;
-            });
+            );
 
             return Task.CompletedTask;
         }
@@ -49,10 +60,12 @@ internal static class Extensions
     /// <summary>
     /// Configures eShop projects to use OpenAI for text embedding and chat.
     /// </summary>
-    public static IDistributedApplicationBuilder AddOpenAI(this IDistributedApplicationBuilder builder,
+    public static IDistributedApplicationBuilder AddOpenAI(
+        this IDistributedApplicationBuilder builder,
         IResourceBuilder<ProjectResource> catalogApi,
         IResourceBuilder<ProjectResource> webApp,
-        OpenAITarget openAITarget)
+        OpenAITarget openAITarget
+    )
     {
         const string openAIName = "openai";
 
@@ -68,49 +81,63 @@ internal static class Extensions
             IResourceBuilder<ParameterResource>? endpoint = null;
             if (openAITarget != OpenAITarget.OpenAI)
             {
-                endpoint = builder.AddParameter("OpenAIEndpointParameter")
-                    .WithDescription("The Azure OpenAI endpoint to use, e.g. https://<name>.openai.azure.com/")
-                    .WithCustomInput(p => new()
-                    {
-                        Name = "OpenAIEndpointParameter",
-                        Label = "Azure OpenAI Endpoint",
-                        InputType = InputType.Text,
-                        Value = "https://<name>.openai.azure.com/",
-                    });
+                endpoint = builder
+                    .AddParameter("OpenAIEndpointParameter")
+                    .WithDescription(
+                        "The Azure OpenAI endpoint to use, e.g. https://<name>.openai.azure.com/"
+                    )
+                    .WithCustomInput(p =>
+                        new()
+                        {
+                            Name = "OpenAIEndpointParameter",
+                            Label = "Azure OpenAI Endpoint",
+                            InputType = InputType.Text,
+                            Value = "https://<name>.openai.azure.com/",
+                        }
+                    );
             }
 
             IResourceBuilder<ParameterResource>? key = null;
             if (openAITarget is OpenAITarget.OpenAI or OpenAITarget.AzureOpenAIExistingWithKey)
             {
-                key = builder.AddParameter("OpenAIKeyParameter", secret: true)
+                key = builder
+                    .AddParameter("OpenAIKeyParameter", secret: true)
                     .WithDescription("The OpenAI API key to use.")
-                    .WithCustomInput(p => new()
-                    {
-                        Name = "OpenAIKeyParameter",
-                        Label = "API Key",
-                        InputType = InputType.SecretText
-                    });
+                    .WithCustomInput(p =>
+                        new()
+                        {
+                            Name = "OpenAIKeyParameter",
+                            Label = "API Key",
+                            InputType = InputType.SecretText,
+                        }
+                    );
             }
 
-            var chatModel = builder.AddParameter("ChatModelParameter")
+            var chatModel = builder
+                .AddParameter("ChatModelParameter")
                 .WithDescription("The chat model to use.")
-                .WithCustomInput(p => new()
-                {
-                    Name = "ChatModelParameter",
-                    Label = "Chat Model",
-                    InputType = InputType.Text,
-                    Value = chatModelName,
-                });
+                .WithCustomInput(p =>
+                    new()
+                    {
+                        Name = "ChatModelParameter",
+                        Label = "Chat Model",
+                        InputType = InputType.Text,
+                        Value = chatModelName,
+                    }
+                );
 
-            var embeddingModel = builder.AddParameter("EmbeddingModelParameter")
+            var embeddingModel = builder
+                .AddParameter("EmbeddingModelParameter")
                 .WithDescription("The embedding model to use.")
-                .WithCustomInput(p => new()
-                {
-                    Name = "EmbeddingModelParameter",
-                    Label = "Text Embedding Model",
-                    InputType = InputType.Text,
-                    Value = textEmbeddingModelName,
-                });
+                .WithCustomInput(p =>
+                    new()
+                    {
+                        Name = "EmbeddingModelParameter",
+                        Label = "Text Embedding Model",
+                        InputType = InputType.Text,
+                        Value = textEmbeddingModelName,
+                    }
+                );
 #pragma warning restore ASPIREINTERACTION001
 
             var openAIConnectionBuilder = new ReferenceExpressionBuilder();
@@ -124,27 +151,39 @@ internal static class Extensions
             }
             var openAIConnectionString = openAIConnectionBuilder.Build();
 
-            catalogApi.WithReference(builder.AddConnectionString(textEmbeddingName, cs =>
-            {
-                cs.Append($"{openAIConnectionString};Deployment={embeddingModel}");
-            }));
-            webApp.WithReference(builder.AddConnectionString(chatName, cs =>
-            {
-                cs.Append($"{openAIConnectionString};Deployment={chatModel}");
-            }));
+            catalogApi.WithReference(
+                builder.AddConnectionString(
+                    textEmbeddingName,
+                    cs =>
+                    {
+                        cs.Append($"{openAIConnectionString};Deployment={embeddingModel}");
+                    }
+                )
+            );
+            webApp.WithReference(
+                builder.AddConnectionString(
+                    chatName,
+                    cs =>
+                    {
+                        cs.Append($"{openAIConnectionString};Deployment={chatModel}");
+                    }
+                )
+            );
         }
         else
         {
             var openAI = builder.AddAzureOpenAI(openAIName);
 
-            var chat = openAI.AddDeployment(chatName, chatModelName, "2025-04-14")
+            var chat = openAI
+                .AddDeployment(chatName, chatModelName, "2025-04-14")
                 .WithProperties(d =>
                 {
                     d.DeploymentName = chatModelName;
                     d.SkuName = "GlobalStandard";
                     d.SkuCapacity = 50;
                 });
-            var textEmbedding = openAI.AddDeployment(textEmbeddingName, textEmbeddingModelName, "1")
+            var textEmbedding = openAI
+                .AddDeployment(textEmbeddingName, textEmbeddingModelName, "1")
                 .WithProperties(d =>
                 {
                     d.DeploymentName = textEmbeddingModelName;
@@ -161,87 +200,192 @@ internal static class Extensions
     /// <summary>
     /// Configures eShop projects to use Ollama for text embedding and chat.
     /// </summary>
-    public static IDistributedApplicationBuilder AddOllama(this IDistributedApplicationBuilder builder,
+    public static IDistributedApplicationBuilder AddOllama(
+        this IDistributedApplicationBuilder builder,
         IResourceBuilder<ProjectResource> catalogApi,
-        IResourceBuilder<ProjectResource> webApp)
+        IResourceBuilder<ProjectResource> webApp
+    )
     {
-        var ollama = builder.AddOllama("ollama")
+        var ollama = builder
+            .AddOllama("ollama")
             .WithDataVolume()
-            .WithGPUSupport()
-            .WithOpenWebUI();
+            // .WithGPUSupport()
+            .WithEnvironment("OLLAMA_NUM_PARALLEL", "2")
+            .WithEnvironment("OLLAMA_MAX_LOADED_MODELS", "2");
         var embeddings = ollama.AddModel("embedding", "all-minilm");
-        var chat = ollama.AddModel("chat", "llama3.1");
+        // var chat = ollama.AddModel("chat", "llama3.2");
 
-        catalogApi.WithReference(embeddings)
+        catalogApi
+            .WithReference(embeddings)
             .WithEnvironment("OllamaEnabled", "true")
             .WaitFor(embeddings);
-        webApp.WithReference(chat)
-            .WithEnvironment("OllamaEnabled", "true")
-            .WaitFor(chat);
+        // webApp.WithReference(chat).WithEnvironment("OllamaEnabled", "true").WaitFor(chat);
 
         return builder;
     }
 
-    public static IResourceBuilder<YarpResource> ConfigureMobileBffRoutes(this IResourceBuilder<YarpResource> builder,
+    public static IResourceBuilder<YarpResource> ConfigureMobileBffRoutes(
+        this IResourceBuilder<YarpResource> builder,
         IResourceBuilder<ProjectResource> catalogApi,
         IResourceBuilder<ProjectResource> orderingApi,
-        IResourceBuilder<ProjectResource> identityApi)
+        IResourceBuilder<ProjectResource> identityApi
+    )
     {
         return builder.WithConfiguration(yarp =>
         {
             var catalogCluster = yarp.AddCluster(catalogApi);
 
             yarp.AddRoute("/catalog-api/api/catalog/items", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1", "2.0"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1", "2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             yarp.AddRoute("/catalog-api/api/catalog/items/by", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1", "2.0"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1", "2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             yarp.AddRoute("/catalog-api/api/catalog/items/{id}", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1", "2.0"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1", "2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             yarp.AddRoute("/catalog-api/api/catalog/items/by/{name}", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
-            yarp.AddRoute("/catalog-api/api/catalog/items/withsemanticrelevance/{text}", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1"], Mode = QueryParameterMatchMode.Exact }])
+            yarp.AddRoute(
+                    "/catalog-api/api/catalog/items/withsemanticrelevance/{text}",
+                    catalogCluster
+                )
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             yarp.AddRoute("/catalog-api/api/catalog/items/withsemanticrelevance", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["2.0"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
-            yarp.AddRoute("/catalog-api/api/catalog/items/type/{typeId}/brand/{brandId?}", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1"], Mode = QueryParameterMatchMode.Exact }])
+            yarp.AddRoute(
+                    "/catalog-api/api/catalog/items/type/{typeId}/brand/{brandId?}",
+                    catalogCluster
+                )
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
-            yarp.AddRoute("/catalog-api/api/catalog/items/type/all/brand/{brandId?}", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1"], Mode = QueryParameterMatchMode.Exact }])
+            yarp.AddRoute(
+                    "/catalog-api/api/catalog/items/type/all/brand/{brandId?}",
+                    catalogCluster
+                )
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             yarp.AddRoute("/catalog-api/api/catalog/catalogTypes", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1", "2.0"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1", "2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             yarp.AddRoute("/catalog-api/api/catalog/catalogBrands", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1", "2.0"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1", "2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             yarp.AddRoute("/catalog-api/api/catalog/items/{id}/pic", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1", "2.0"], Mode = QueryParameterMatchMode.Exact }])
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1", "2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ])
                 .WithTransformPathRemovePrefix("/catalog-api");
 
             // Generic catalog catch-all route
             yarp.AddRoute("/api/catalog/{*any}", catalogCluster)
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1", "2.0"], Mode = QueryParameterMatchMode.Exact }]);
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1", "2.0"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ]);
 
             // Ordering routes
             yarp.AddRoute("/api/orders/{*any}", orderingApi.GetEndpoint("http"))
-                .WithMatchRouteQueryParameter([new() { Name = "api-version", Values = ["1.0", "1"], Mode = QueryParameterMatchMode.Exact }]);
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ]);
 
             // Identity routes
             yarp.AddRoute("/identity/{*any}", identityApi.GetEndpoint("http"))

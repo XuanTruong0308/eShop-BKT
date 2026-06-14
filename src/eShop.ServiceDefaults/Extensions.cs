@@ -28,6 +28,14 @@ public static partial class Extensions
             http.AddServiceDiscovery();
         });
 
+        // Set global resilience timeouts to 5 minutes to support local Ollama LLM execution on CPU
+        builder.Services.ConfigureAll<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>(options =>
+        {
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+            options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(5);
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(10);
+        });
+
         return builder;
     }
 

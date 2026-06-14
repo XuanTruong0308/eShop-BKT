@@ -347,6 +347,8 @@ public static class CatalogApi
             return await GetItemsByName(paginationRequest, services, text);
         }
 
+
+
         // Create an embedding for the input search
         var vector = await services.CatalogAI.GetEmbeddingAsync(text);
 
@@ -386,6 +388,14 @@ public static class CatalogApi
                 .Skip(pageSize * pageIndex)
                 .Take(pageSize)
                 .ToListAsync();
+        }
+
+        // Fallback if semantic search returned no results
+        if (itemsOnPage.Count == 0)
+        {
+            services.Logger.LogWarning("Semantic search returned 0 results for '{text}'. Falling back to name-based search.", text);
+            var fallbackResults = await GetItemsByName(paginationRequest, services, text);
+            return fallbackResults;
         }
 
         return TypedResults.Ok(

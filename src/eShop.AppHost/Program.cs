@@ -118,10 +118,10 @@ var webApp = builder
     .WithReference(discountApi);
 
 // set to true if you want to use OpenAI
-bool useOpenAI = false;
+bool useOpenAI = true;
 if (useOpenAI)
 {
-    builder.AddOpenAI(catalogApi, webApp, OpenAITarget.OpenAI); // set to AzureOpenAI if you want to use Azure OpenAI
+    builder.AddOpenAI(catalogApi, webApp, OpenAITarget.AzureOpenAIExistingWithKey); // Set to AzureOpenAIExistingWithKey to support custom endpoint + key (Gemini)
 }
 
 bool useOllama = true;

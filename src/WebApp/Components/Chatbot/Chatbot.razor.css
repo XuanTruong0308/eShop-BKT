@@ -1,4 +1,4 @@
-﻿.floating-pane {
+.floating-pane {
     position: fixed;
     padding-top: 1em;
     width: 25rem;
@@ -77,6 +77,28 @@
         font-weight: 500;
         padding: 0.6rem 0.8rem;
         text-align: center;
+        background-color: #102c57;
+        color: white;
+        transition: background-color 0.2s ease;
+    }
+
+    .chatbot-input button:hover {
+        background-color: #1d4b8f;
+    }
+
+    .chatbot-input button:disabled {
+        background-color: #e2e8f0;
+        color: #94a3b8;
+        cursor: not-allowed;
+    }
+
+    .chatbot-input button.btn-stop {
+        background-color: #ef4444;
+        color: white;
+    }
+
+    .chatbot-input button.btn-stop:hover {
+        background-color: #dc2626;
     }
 
 .chatbot-chat {
@@ -111,6 +133,55 @@
 
     .chatbot-chat ::deep img {
         max-height: 10rem;
+        display: block;
+        margin: 0.5rem 0;
+        border-radius: 0.25rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .chatbot-chat ::deep .chat-link {
+        color: #102c57;
+        text-decoration: underline;
+        font-weight: 500;
+        display: inline-block;
+        margin: 0.25rem 0;
+        transition: color 0.2s ease;
+    }
+
+    .chatbot-chat ::deep .chat-link:hover {
+        color: #1d4b8f;
+    }
+
+    .chatbot-chat ::deep .chat-btn-add-to-cart {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #102c57;
+        color: white;
+        border: none;
+        border-radius: 0.375rem;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        margin-top: 0.5rem;
+        margin-bottom: 0.25rem;
+        transition: background-color 0.2s ease, transform 0.1s ease;
+        box-shadow: 0 2px 4px rgba(16, 44, 87, 0.2);
+    }
+
+    .chatbot-chat ::deep .chat-btn-add-to-cart:hover {
+        background-color: #1d4b8f;
+        transform: translateY(-1px);
+    }
+
+    .chatbot-chat ::deep .chat-btn-add-to-cart:active {
+        transform: translateY(0);
+    }
+
+    .chatbot-chat ::deep .chat-btn-add-to-cart svg {
+        margin-right: 0.375rem;
+        flex-shrink: 0;
     }
 
     .thinking {
@@ -136,3 +207,14 @@
         opacity: 0.2;
     }
 }
+
+.chatbot-chat ::deep .chat-list {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+    list-style-type: disc;
+}
+
+.chatbot-chat ::deep .chat-list li {
+    margin-bottom: 0.25rem;
+}
+

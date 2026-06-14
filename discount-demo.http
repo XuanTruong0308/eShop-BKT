@@ -1,0 +1,28 @@
+# =====================================================================
+# HTTP Client File for Discount Service (Loyalty & Ranks) Demo
+# Supported by Visual Studio & VS Code REST Client Extension
+# =====================================================================
+
+@DiscountApiUrl = http://localhost:5048
+@AliceGuid = 22ae9d28-c095-4142-b493-5f0946fc94ee
+
+### 1. Retrieve All Loyalty Records (Debug Endpoint)
+# Shows all user GUIDs, accumulated spending, and loyalty ranks currently in PostgreSQL.
+GET {{DiscountApiUrl}}/api/v1/discount?customerId=debug_all&orderAmount=0
+Accept: application/json
+
+### 2. Query Alice's Loyalty Status & Discount (100$ Order)
+# Alice is currently VIP (30% discount). On a 100$ order, she saves 30$ and pays 70$.
+GET {{DiscountApiUrl}}/api/v1/discount?customerId={{AliceGuid}}&orderAmount=100
+Accept: application/json
+
+### 3. Query Alice's Loyalty Status & Discount (500$ Order)
+# On a larger 500$ order, she saves 150$ and pays 350$.
+GET {{DiscountApiUrl}}/api/v1/discount?customerId={{AliceGuid}}&orderAmount=500
+Accept: application/json
+
+### 4. Query Bob's Status (Default / Unregistered)
+# Returns rank NOR (0% discount) as Bob has not completed a checkout yet.
+# Note: Replace 'bob' with Bob's actual GUID from Request #1 once Bob checkouts.
+GET {{DiscountApiUrl}}/api/v1/discount?customerId=bob&orderAmount=100
+Accept: application/json

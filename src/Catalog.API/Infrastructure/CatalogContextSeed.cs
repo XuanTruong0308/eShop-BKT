@@ -72,6 +72,36 @@ public partial class CatalogContextSeed(
             logger.LogInformation("Seeded catalog with {NumItems} items", context.CatalogItems.Count());
             await context.SaveChangesAsync();
         }
+
+        // Self-heal: check if any existing catalog items are missing embeddings and generate them during startup
+        if (catalogAI.IsEnabled)
+        {
+            try
+            {
+                var itemsMissingEmbedding = await context.CatalogItems
+                    .Where(c => c.Embedding == null)
+                    .ToListAsync();
+
+                if (itemsMissingEmbedding.Count > 0)
+                {
+                    logger.LogInformation("Found {Count} items missing embeddings at startup. Generating them now...", itemsMissingEmbedding.Count);
+                    var embeddings = await catalogAI.GetEmbeddingsAsync(itemsMissingEmbedding);
+                    if (embeddings != null)
+                    {
+                        for (int i = 0; i < itemsMissingEmbedding.Count; i++)
+                        {
+                            itemsMissingEmbedding[i].Embedding = embeddings[i];
+                        }
+                        await context.SaveChangesAsync();
+                        logger.LogInformation("Successfully seeded embeddings for {Count} items at startup.", itemsMissingEmbedding.Count);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to generate missing embeddings during startup database seeding.");
+            }
+        }
     }
 
     private class CatalogSourceEntry

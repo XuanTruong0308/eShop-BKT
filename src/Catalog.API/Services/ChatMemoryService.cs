@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Azure.Cosmos;
 
 namespace eShop.Catalog.API.Services;
@@ -7,6 +8,8 @@ public class ChatMemoryService : IChatMemoryService
     private readonly CosmosClient _cosmosClient;
     private Container? _container;
     private readonly ILogger<ChatMemoryService> _logger;
+    private bool _useInMemoryFallback = true; // Set to true by default to bypass Cosmos DB Emulator for maximum local performance and RAM savings
+    private static readonly ConcurrentDictionary<string, ChatSessionDto> _inMemorySessions = new();
 
     public ChatMemoryService(CosmosClient cosmosClient, ILogger<ChatMemoryService> logger)
     {
@@ -16,7 +19,7 @@ public class ChatMemoryService : IChatMemoryService
 
     private async Task EnsureInitializedAsync()
     {
-        if (_container != null)
+        if (_container != null || _useInMemoryFallback)
             return;
 
         try
@@ -30,8 +33,8 @@ public class ChatMemoryService : IChatMemoryService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize Cosmos DB container");
-            throw;
+            _logger.LogWarning(ex, "Failed to initialize Cosmos DB container. Falling back to In-Memory session storage.");
+            _useInMemoryFallback = true;
         }
     }
 
@@ -42,6 +45,19 @@ public class ChatMemoryService : IChatMemoryService
     )
     {
         await EnsureInitializedAsync();
+
+        if (_useInMemoryFallback)
+        {
+            var session = new ChatSessionDto
+            {
+                SessionId = sessionId,
+                UserId = userId,
+                Messages = messages,
+                Timestamp = DateTime.UtcNow
+            };
+            _inMemorySessions[$"{userId}:{sessionId}"] = session;
+            return;
+        }
 
         var document = new ChatSessionDocument
         {
@@ -57,6 +73,16 @@ public class ChatMemoryService : IChatMemoryService
     public async Task<ChatSessionDto?> GetSessionAsync(string sessionId, string userId)
     {
         await EnsureInitializedAsync();
+
+        if (_useInMemoryFallback)
+        {
+            if (_inMemorySessions.TryGetValue($"{userId}:{sessionId}", out var session))
+            {
+                return session;
+            }
+            return null;
+        }
+
         try
         {
             var response = await _container!.ReadItemAsync<ChatSessionDocument>(

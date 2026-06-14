@@ -130,5 +130,5 @@ Các cải tiến trực quan trên giao diện Blazor WebApp bao gồm:
    * UI tự động nhận diện tài khoản đăng nhập của người dùng qua `AuthenticationStateProvider`.
    * Nếu người dùng đăng nhập là **Alice** ➔ Lấy `sub` claim làm `UserId`.
    * Nếu là khách vãng lai (chưa đăng nhập) ➔ Sinh mã ngẫu nhiên dạng `guest-{Guid}` để lưu tạm phiên chat cho đến khi tải lại trang.
-3. **Hiển thị Tin nhắn Thời gian thực:**
-   * Sau khi người dùng nhấn gửi, UI hiển thị biểu tượng loading ("AI is typing...") trong khi chờ LLM sinh câu trả lời. Ngay sau khi Ollama phản hồi, tin nhắn mới được thêm vào và tự động kích hoạt tiến trình lưu ngầm (background save) xuống Cosmos DB mà không làm đơ giao diện người dùng.
+3. **Hiển thị Tin nhắn Thời gian thực (Streaming UX):**
+   * Sau khi người dùng nhấn gửi, UI hiển thị trạng thái "Thinking..." để báo hiệu AI đang chuẩn bị câu trả lời. Ngay khi từ đầu tiên từ Ollama được trả về, trạng thái "Thinking..." sẽ biến mất và văn bản sẽ được stream trực tiếp từng từ một (token-by-token) lên giao diện. Khi quá trình sinh văn bản kết thúc, hệ thống sẽ thực hiện lưu trữ hội thoại xuống Cosmos DB ở tiến trình ngầm mà không làm đơ giao diện người dùng.

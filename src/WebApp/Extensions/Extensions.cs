@@ -1,4 +1,4 @@
-﻿using eShop.Basket.API.Grpc;
+using eShop.Basket.API.Grpc;
 using eShop.WebApp.Services.OrderStatus.IntegrationEvents;
 using eShop.WebAppComponents.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.JsonWebTokens;
+using System.Text.Json.Nodes;
 
 public static class Extensions
 {
@@ -24,6 +25,7 @@ public static class Extensions
         builder.Services.AddSingleton<BasketService>();
         builder.Services.AddSingleton<OrderStatusNotificationService>();
         builder.Services.AddSingleton<IProductImageUrlProvider, ProductImageUrlProvider>();
+        builder.Services.AddSingleton<eShop.WebApp.Services.BasketUpdateNotifier>();
         builder.AddAIServices();
 
         // HTTP and GRPC client registrations
@@ -133,13 +135,48 @@ public static class Extensions
             && bool.Parse(ollamaEnabled)
         )
         {
+            builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>("chat", options =>
+            {
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+                options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(5);
+            });
             chatClientBuilder = builder.AddOllamaApiClient("chat").AddChatClient();
         }
         else if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("chatModel")))
         {
-            chatClientBuilder = builder
-                .AddOpenAIClientFromConfiguration("chatModel")
-                .AddChatClient();
+            var connectionString = builder.Configuration.GetConnectionString("chatModel")!;
+            var parts = connectionString.Split(';')
+                .Select(p => p.Split('=', 2))
+                .Where(p => p.Length == 2)
+                .ToDictionary(p => p[0].Trim(), p => p[1].Trim(), StringComparer.OrdinalIgnoreCase);
+
+            if (parts.TryGetValue("Key", out var apiKey) && parts.TryGetValue("Endpoint", out var endpointUri))
+            {
+                parts.TryGetValue("Deployment", out var modelName);
+                modelName ??= "gemini-2.5-flash";
+
+                var clientOptions = new global::OpenAI.OpenAIClientOptions { Endpoint = new Uri(endpointUri) };
+                if (apiKey.StartsWith("AQ.", StringComparison.OrdinalIgnoreCase))
+                {
+                    clientOptions.AddPolicy(new CustomHeaderPolicy(apiKey), System.ClientModel.Primitives.PipelinePosition.PerCall);
+                }
+
+                var openAIClient = new global::OpenAI.OpenAIClient(
+                    new System.ClientModel.ApiKeyCredential(apiKey),
+                    clientOptions
+                );
+
+                builder.Services.AddSingleton(openAIClient);
+                chatClientBuilder = builder.Services.AddChatClient(sp => 
+                    openAIClient.GetChatClient(modelName).AsIChatClient()
+                );
+            }
+            else
+            {
+                chatClientBuilder = builder
+                    .AddOpenAIClientFromConfiguration("chatModel")
+                    .AddChatClient();
+            }
         }
 
         chatClientBuilder?.UseFunctionInvocation();
@@ -161,5 +198,133 @@ public static class Extensions
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         return user.FindFirst("name")?.Value;
+    }
+
+    private class CustomHeaderPolicy : System.ClientModel.Primitives.PipelinePolicy
+    {
+        private readonly string _apiKey;
+
+        public CustomHeaderPolicy(string apiKey)
+        {
+            _apiKey = apiKey;
+        }
+
+        private void ModifyRequestContent(System.ClientModel.Primitives.PipelineMessage message)
+        {
+            if (message.Request.Content == null) return;
+
+            try
+            {
+                using var ms = new System.IO.MemoryStream();
+                message.Request.Content.WriteTo(ms, default);
+                var bytes = ms.ToArray();
+                var json = System.Text.Encoding.UTF8.GetString(bytes);
+
+                var root = JsonNode.Parse(json);
+                if (root is JsonObject obj && 
+                    obj.TryGetPropertyValue("messages", out var messagesNode) && 
+                    messagesNode is JsonArray messagesArray)
+                {
+                    bool modified = false;
+                    foreach (var messageNode in messagesArray)
+                    {
+                        if (messageNode is JsonObject msgObj)
+                        {
+                            if (msgObj.TryGetPropertyValue("role", out var roleVal) && roleVal?.ToString() == "assistant")
+                            {
+                                if (msgObj.TryGetPropertyValue("tool_calls", out var toolCalls) && 
+                                    toolCalls is JsonArray tCalls && tCalls.Count > 0)
+                                {
+                                    if (!msgObj.ContainsKey("thought_signature"))
+                                    {
+                                        msgObj["thought_signature"] = "skip_thought_signature_validator";
+                                        modified = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (modified)
+                    {
+                        var modifiedJson = root.ToJsonString();
+                        message.Request.Content = System.ClientModel.BinaryContent.Create(
+                            System.BinaryData.FromString(modifiedJson)
+                        );
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors to prevent crashing the request pipeline
+            }
+        }
+
+        private async System.Threading.Tasks.ValueTask ModifyRequestContentAsync(System.ClientModel.Primitives.PipelineMessage message, System.Threading.CancellationToken cancellationToken)
+        {
+            if (message.Request.Content == null) return;
+
+            try
+            {
+                using var ms = new System.IO.MemoryStream();
+                await message.Request.Content.WriteToAsync(ms, cancellationToken).ConfigureAwait(false);
+                var bytes = ms.ToArray();
+                var json = System.Text.Encoding.UTF8.GetString(bytes);
+
+                var root = JsonNode.Parse(json);
+                if (root is JsonObject obj && 
+                    obj.TryGetPropertyValue("messages", out var messagesNode) && 
+                    messagesNode is JsonArray messagesArray)
+                {
+                    bool modified = false;
+                    foreach (var messageNode in messagesArray)
+                    {
+                        if (messageNode is JsonObject msgObj)
+                        {
+                            if (msgObj.TryGetPropertyValue("role", out var roleVal) && roleVal?.ToString() == "assistant")
+                            {
+                                if (msgObj.TryGetPropertyValue("tool_calls", out var toolCalls) && 
+                                    toolCalls is JsonArray tCalls && tCalls.Count > 0)
+                                {
+                                    if (!msgObj.ContainsKey("thought_signature"))
+                                    {
+                                        msgObj["thought_signature"] = "skip_thought_signature_validator";
+                                        modified = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (modified)
+                    {
+                        var modifiedJson = root.ToJsonString();
+                        message.Request.Content = System.ClientModel.BinaryContent.Create(
+                            System.BinaryData.FromString(modifiedJson)
+                        );
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors
+            }
+        }
+
+        public override void Process(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
+        {
+            message.Request.Headers.Set("x-goog-api-key", _apiKey);
+            message.Request.Headers.Remove("Authorization");
+            ModifyRequestContent(message);
+            ProcessNext(message, pipeline, currentIndex);
+        }
+
+        public override async System.Threading.Tasks.ValueTask ProcessAsync(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
+        {
+            message.Request.Headers.Set("x-goog-api-key", _apiKey);
+            message.Request.Headers.Remove("Authorization");
+            await ModifyRequestContentAsync(message, message.CancellationToken).ConfigureAwait(false);
+            await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
+        }
     }
 }

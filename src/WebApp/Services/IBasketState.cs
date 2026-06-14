@@ -1,4 +1,4 @@
-﻿using eShop.WebAppComponents.Catalog;
+using eShop.WebAppComponents.Catalog;
 
 namespace eShop.WebApp.Services
 {
@@ -6,6 +6,6 @@ namespace eShop.WebApp.Services
     {
         public Task<IReadOnlyCollection<BasketItem>> GetBasketItemsAsync();
 
-        public Task AddAsync(CatalogItem item);
+        public Task AddAsync(CatalogItem item, int quantity = 1);
     }
 }

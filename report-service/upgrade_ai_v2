@@ -1,0 +1,353 @@
+# Trợ lý Mua sắm AI: Thêm nút "Thêm vào giỏ hàng" và Link bộ lọc sản phẩm trong khung Chat
+
+Dự án này nâng cấp Trợ lý ảo AI mua sắm (Chatbot) để khi khách hàng tìm kiếm sản phẩm (ví dụ: áo khoác màu đỏ), AI sẽ hiển thị kết quả sản phẩm kèm hình ảnh, nút "Thêm vào giỏ hàng" (Add to Cart) hoạt động trực tiếp, link chi tiết sản phẩm, và link dẫn tới trang lọc/filter danh mục tương ứng.
+
+Đồng thời, kế hoạch giải quyết vấn đề bất đồng ngôn ngữ (người dùng gõ tiếng Việt nhưng cơ sở dữ liệu nhúng semantic dùng tiếng Anh) bằng cách hướng dẫn mô hình tự dịch mô tả sản phẩm sang tiếng Anh trước khi tìm kiếm.
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **Cú pháp Markdown tùy chỉnh cho Khung Chat**: AI sẽ sinh ra mã Markdown dạng `[Thêm vào giỏ hàng](submit:add-to-cart:ProductId)` để hiển thị nút thêm vào giỏ hàng.
+> - **Thao tác thêm vào giỏ**: Khi click nút thêm vào giỏ từ khung chat, WebApp sẽ gọi trực tiếp service `BasketState` để cập nhật giỏ hàng theo thời gian thực (số lượng trên Header Cart sẽ thay đổi ngay lập tức).
+> - **Chuyển ngữ Semantic**: AI sẽ tự động dịch câu hỏi của khách hàng thành mô tả tiếng Anh chuẩn để truyền vào hàm `SearchCatalog`, nâng cao độ chính xác khi tìm kiếm bằng Ollama.
+
+---
+
+## Chi tiết các thay đổi đề xuất
+
+### 1. WebApp Components & Services
+
+#### [MODIFY] [MessageProcessor.cs](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/WebApp/Components/Chatbot/MessageProcessor.cs)
+Thay đổi bộ xử lý tin nhắn để phân tích tin nhắn Markdown thành một danh sách các phần tử (Parts) riêng biệt, hỗ trợ hình ảnh, liên kết, nút và văn bản thuần túy một cách an toàn thay vì chỉ thay thế thẻ `<img>` thô.
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+
+namespace eShop.WebApp.Chatbot;
+
+public abstract record ChatMessagePart;
+public record TextMessagePart(string Text) : ChatMessagePart;
+public record ImageMessagePart(string Alt, string Url) : ChatMessagePart;
+public record LinkMessagePart(string Text, string Url) : ChatMessagePart;
+public record AddToCartButtonMessagePart(int ItemId, string ItemName) : ChatMessagePart;
+
+public static partial class MessageProcessor
+{
+    private static readonly Regex MarkdownRegex = new(@"(!?)\[([^\]]+)\]\s*\(([^)]+)\)", RegexOptions.Compiled);
+
+    public static List<ChatMessagePart> ParseMessage(string message)
+    {
+        var parts = new List<ChatMessagePart>();
+        if (string.IsNullOrEmpty(message))
+        {
+            return parts;
+        }
+
+        var matches = MarkdownRegex.Matches(message);
+        int lastIndex = 0;
+
+        foreach (Match match in matches)
+        {
+            if (match.Index > lastIndex)
+            {
+                parts.Add(new TextMessagePart(message.Substring(lastIndex, match.Index - lastIndex)));
+            }
+
+            string isImage = match.Groups[1].Value;
+            string text = match.Groups[2].Value;
+            string urlOrAction = match.Groups[3].Value;
+
+            if (!string.IsNullOrEmpty(isImage))
+            {
+                parts.Add(new ImageMessagePart(text, urlOrAction));
+            }
+            else if (urlOrAction.StartsWith("submit:add-to-cart:", StringComparison.OrdinalIgnoreCase))
+            {
+                var idStr = urlOrAction.Substring("submit:add-to-cart:".Length);
+                if (int.TryParse(idStr, out int itemId))
+                {
+                    parts.Add(new AddToCartButtonMessagePart(itemId, text));
+                }
+                else
+                {
+                    parts.Add(new LinkMessagePart(text, urlOrAction));
+                }
+            }
+            else if (urlOrAction.StartsWith("add-to-cart:", StringComparison.OrdinalIgnoreCase))
+            {
+                var idStr = urlOrAction.Substring("add-to-cart:".Length);
+                if (int.TryParse(idStr, out int itemId))
+                {
+                    parts.Add(new AddToCartButtonMessagePart(itemId, text));
+                }
+                else
+                {
+                    parts.Add(new LinkMessagePart(text, urlOrAction));
+                }
+            }
+            else
+            {
+                parts.Add(new LinkMessagePart(text, urlOrAction));
+            }
+
+            lastIndex = match.Index + match.Length;
+        }
+
+        if (lastIndex < message.Length)
+        {
+            parts.Add(new TextMessagePart(message.Substring(lastIndex)));
+        }
+
+        return parts;
+    }
+}
+```
+
+---
+
+### 2. WebApp UI Components
+
+#### [MODIFY] [Chatbot.razor](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/WebApp/Components/Chatbot/Chatbot.razor)
+- Sử dụng phương thức phân tích cú pháp mới để lặp và kết xuất các phần tử tin nhắn trực tiếp trong Blazor.
+- Thêm phương thức C# `AddToCartAsync` để thêm sản phẩm vào giỏ hàng trực tiếp từ sự kiện `@onclick` của nút trong chat.
+
+```razor
+<!-- Cập nhật vòng lặp kết xuất tin nhắn -->
+@if (chatState is not null)
+{
+    foreach (var message in chatState.Messages.Where(m => m.Role == ChatRole.Assistant || m.Role == ChatRole.User))
+    {
+        if (!string.IsNullOrEmpty(message.Text))
+        {
+            <p @key="@message" class="message message-@message.Role">
+                @foreach (var part in MessageProcessor.ParseMessage(message.Text))
+                {
+                    if (part is TextMessagePart textPart)
+                    {
+                        @textPart.Text
+                    }
+                    else if (part is ImageMessagePart imagePart)
+                    {
+                        <img title="@imagePart.Alt" src="@imagePart.Url" alt="@imagePart.Alt" />
+                    }
+                    else if (part is LinkMessagePart linkPart)
+                    {
+                        <a href="@linkPart.Url" class="chat-link">@linkPart.Text</a>
+                    }
+                    else if (part is AddToCartButtonMessagePart cartPart)
+                    {
+                        <button type="button" class="chat-btn-add-to-cart" @onclick="() => AddToCartAsync(cartPart.ItemId)">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/>
+                                <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+                            </svg>
+                            @cartPart.ItemName
+                        </button>
+                    }
+                }
+            </p>
+        }
+    }
+}
+```
+
+Thêm code logic trong khối `@code` của `Chatbot.razor`:
+```csharp
+    private async Task AddToCartAsync(int itemId)
+    {
+        try
+        {
+            var item = await CatalogService.GetCatalogItem(itemId);
+            if (item is not null)
+            {
+                await BasketState.AddAsync(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggerFactory.CreateLogger("Chatbot").LogError(ex, "Failed to add item to cart from chatbot");
+        }
+    }
+```
+
+#### [MODIFY] [Chatbot.razor.css](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/WebApp/Components/Chatbot/Chatbot.razor.css)
+Thêm các định nghĩa CSS để nút "Thêm vào giỏ hàng" và liên kết sản phẩm có giao diện hiện đại và ăn nhập với thiết kế của eShop.
+
+```css
+.chatbot-chat ::deep img {
+    max-height: 10rem;
+    display: block;
+    margin: 0.5rem 0;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.chatbot-chat ::deep .chat-link {
+    color: #102c57;
+    text-decoration: underline;
+    font-weight: 500;
+    display: inline-block;
+    margin: 0.25rem 0;
+    transition: color 0.2s ease;
+}
+
+.chatbot-chat ::deep .chat-link:hover {
+    color: #1d4b8f;
+}
+
+.chatbot-chat ::deep .chat-btn-add-to-cart {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #102c57;
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 2px 4px rgba(16, 44, 87, 0.2);
+}
+
+.chatbot-chat ::deep .chat-btn-add-to-cart:hover {
+    background-color: #1d4b8f;
+    transform: translateY(-1px);
+}
+
+.chatbot-chat ::deep .chat-btn-add-to-cart:active {
+    transform: translateY(0);
+}
+
+.chatbot-chat ::deep .chat-btn-add-to-cart svg {
+    margin-right: 0.375rem;
+    flex-shrink: 0;
+}
+```
+
+---
+
+### 3. Chat State & System Instructions
+
+#### [MODIFY] [ChatState.cs](file:///d:/Subagent/Nhom_10_DevOps_Testing_Production/eShop-main/src/WebApp/Components/Chatbot/ChatState.cs)
+- Lấy danh sách các Brands và Types danh mục sản phẩm từ `CatalogService` khi khởi chạy và đưa chúng vào System Prompt của AI.
+- Cập nhật System Prompt để hướng dẫn AI dịch câu hỏi tiếng Việt sang tiếng Anh cho tìm kiếm semantic, và kết xuất Markdown cho hình ảnh, liên kết, nút giỏ hàng.
+
+```csharp
+    private IEnumerable<CatalogBrand>? _brands;
+    private IEnumerable<CatalogItemType>? _types;
+    private string _systemPrompt = string.Empty;
+
+    private string GetSystemPrompt(string brands, string types) =>
+        $$"""
+        You are an AI customer service agent for the online retailer AdventureWorks.
+        You NEVER respond about topics other than AdventureWorks.
+        Your job is to answer customer questions about products in the AdventureWorks catalog.
+        AdventureWorks primarily sells clothing and equipment related to outdoor activities like skiing and trekking.
+        You try to be concise and only provide longer responses if necessary.
+        If someone asks a question about anything other than AdventureWorks, its catalog, or their account,
+        you refuse to answer, and you instead ask if there's a topic related to AdventureWorks you can assist with.
+
+        CRITICAL SEARCH RULES:
+        1. The catalog search tool (`SearchCatalog`) only supports search descriptions in English. If the user asks in another language (like Vietnamese), you MUST translate their search query or product description to English before calling `SearchCatalog`.
+        
+        CRITICAL PRODUCT FORMATTING RULES:
+        When suggesting products to the user, you MUST present them using the following rich UI formatting conventions:
+        1. Product Image: Render the product's image using markdown image format: `![Product Name](PictureUrl)`
+        2. Product Title and Details: Output the name and price clearly.
+        3. Add to Cart button: Output a button using the custom markdown format: `[Add to Cart](submit:add-to-cart:ProductId)`
+        4. Details link: Link to the product details page: `[Details](/item/ProductId)`
+        5. General Filter/Category links: If the user is looking for a type or brand generally, suggest a link to the filter page: `[View all TypeName](/?type=TypeId)` or `[View BrandName](/?brand=BrandId)`.
+
+        Available Catalog Categories (Types):
+        {{types}}
+
+        Available Catalog Brands:
+        {{brands}}
+        """;
+```
+
+Trong phương thức `InitializeAsync()`:
+```csharp
+    public async Task InitializeAsync()
+    {
+        UserId = _user.Claims.FirstOrDefault(x => x.Type == "sub")?.Value ?? "guest";
+        SessionId = UserId != "guest" ? UserId : "guest-" + Guid.NewGuid().ToString("N");
+
+        try
+        {
+            _brands = await _catalogService.GetBrands();
+            _types = await _catalogService.GetTypes();
+            
+            var brandsStr = string.Join(", ", _brands?.Select(b => $"{b.Brand} (Id: {b.Id})") ?? Array.Empty<string>());
+            var typesStr = string.Join(", ", _types?.Select(t => $"{t.Type} (Id: {t.Id})") ?? Array.Empty<string>());
+            _systemPrompt = GetSystemPrompt(brandsStr, typesStr);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load brands/types for system prompt.");
+            _systemPrompt = GetSystemPrompt(string.Empty, string.Empty);
+        }
+
+        try
+        {
+            var savedSession = await _catalogService.GetChatSession(SessionId, UserId);
+            if (savedSession != null && savedSession.Messages.Any())
+            {
+                Messages.Clear();
+                Messages.Add(new ChatMessage(ChatRole.System, _systemPrompt));
+
+                foreach (var msg in savedSession.Messages)
+                {
+                    var role = msg.Role.ToLower() switch
+                    {
+                        "user" => ChatRole.User,
+                        "assistant" => ChatRole.Assistant,
+                        "system" => ChatRole.System,
+                        _ => ChatRole.Assistant,
+                    };
+                    
+                    if (role == ChatRole.System)
+                    {
+                        continue;
+                    }
+                    Messages.Add(new ChatMessage(role, msg.Content));
+                }
+            }
+            else
+            {
+                Messages.Clear();
+                Messages.Add(new ChatMessage(ChatRole.System, _systemPrompt));
+                Messages.Add(new ChatMessage(ChatRole.Assistant, "Hi! I'm the AdventureWorks Concierge. How can I help?"));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load chat session from memory.");
+        }
+    }
+```
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Build dự án WebApp để kiểm tra lỗi biên dịch:
+  ```powershell
+  dotnet build src/WebApp/WebApp.csproj
+  ```
+
+### Manual Verification
+1. Chạy eShop (Emulator Cosmos DB, Catalog.API, WebApp, vv).
+2. Gửi tin nhắn tiếng Việt: *"Tôi cần tìm áo khoác màu đỏ giữ ấm tốt nhất"* hoặc *"tôi cần một cái jacket màu đỏ và giữ ấm tốt nhất"*.
+3. Xác nhận:
+   - AI tìm kiếm thành công và trả về chiếc **Alpine Peak Down Jacket**.
+   - Tin nhắn hiển thị hình ảnh áo khoác, tên, giá, nút "Thêm vào giỏ hàng" và link liên kết.
+   - Click "Thêm vào giỏ hàng" và kiểm tra xem giỏ hàng trong Header có tự động nhảy số lên không.
+   - Click các liên kết danh mục xem bộ lọc danh mục tại trang chủ `/` có hoạt động đúng không.

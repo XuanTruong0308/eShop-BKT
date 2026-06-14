@@ -1,8 +1,12 @@
-﻿@using System.Net
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net
+@using Microsoft.AspNetCore.Components.Authorization
 @attribute [StreamRendering]
 @inject BasketState Basket
+@inject BasketUpdateNotifier BasketUpdateNotifier
 @inject LogOutService LogOutService
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @implements IDisposable
 
 <a aria-label="cart" href="cart">
@@ -24,11 +28,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // The basket contents may change during the lifetime of this component (e.g., when an item is
-        // added during the current request). If this EventCallback is invoked, it will cause this
-        // component to re-render with the updated data.
+        // The basket contents may change during the lifetime of this component
         basketStateSubscription = Basket.NotifyOnChange(
             EventCallback.Factory.Create(this, UpdateBasketItemsAsync));
+
+        BasketUpdateNotifier.OnBasketUpdated += HandleBasketUpdatedAsync;
 
         try
         {
@@ -36,12 +40,34 @@
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
         {
-            await LogOutService.LogOutAsync(HttpContext!);
+            if (HttpContext is not null)
+            {
+                await LogOutService.LogOutAsync(HttpContext);
+            }
+            else
+            {
+                NavigationManager.NavigateTo("user/logout", forceLoad: true);
+            }
+        }
+    }
+
+    private async Task HandleBasketUpdatedAsync(string userId)
+    {
+        var currentUserId = await AuthenticationStateProvider.GetBuyerIdAsync() ?? "guest";
+        if (currentUserId == userId)
+        {
+            Basket.ClearCache();
+            await InvokeAsync(async () =>
+            {
+                await UpdateBasketItemsAsync();
+                StateHasChanged();
+            });
         }
     }
 
     public void Dispose()
     {
+        BasketUpdateNotifier.OnBasketUpdated -= HandleBasketUpdatedAsync;
         basketStateSubscription?.Dispose();
     }
 

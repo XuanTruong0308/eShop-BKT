@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using eShop.WebAppComponents.Catalog;
 using eShop.WebAppComponents.Services;
 using Microsoft.AspNetCore.Components;
@@ -10,8 +10,9 @@ public class BasketState(
     BasketService basketService,
     CatalogService catalogService,
     OrderingService orderingService,
-    DiscountService discountService, // Inject discount service here
-    AuthenticationStateProvider authenticationStateProvider
+    DiscountService discountService,
+    AuthenticationStateProvider authenticationStateProvider,
+    BasketUpdateNotifier basketUpdateNotifier
 ) : IBasketState
 {
     private Task<IReadOnlyCollection<BasketItem>>? _cachedBasket;
@@ -31,8 +32,14 @@ public class BasketState(
         return subscription;
     }
 
-    public async Task AddAsync(CatalogItem item)
+    public void ClearCache()
     {
+        _cachedBasket = null;
+    }
+
+    public async Task AddAsync(CatalogItem item, int quantity = 1)
+    {
+        if (quantity <= 0) quantity = 1;
         var items = (await FetchBasketItemsAsync())
             .Select(i => new BasketQuantity(i.ProductId, i.Quantity))
             .ToList();
@@ -42,7 +49,7 @@ public class BasketState(
             var existing = items[i];
             if (existing.ProductId == item.Id)
             {
-                items[i] = existing with { Quantity = existing.Quantity + 1 };
+                items[i] = existing with { Quantity = existing.Quantity + quantity };
                 found = true;
                 break;
             }
@@ -50,11 +57,15 @@ public class BasketState(
 
         if (!found)
         {
-            items.Add(new BasketQuantity(item.Id, 1));
+            items.Add(new BasketQuantity(item.Id, quantity));
         }
 
         _cachedBasket = null;
         await basketService.UpdateBasketAsync(items);
+        
+        var buyerId = await authenticationStateProvider.GetBuyerIdAsync() ?? "guest";
+        basketUpdateNotifier.NotifyUpdate(buyerId);
+        
         await NotifyChangeSubscribersAsync();
     }
 
