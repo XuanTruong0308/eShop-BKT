@@ -6,53 +6,51 @@ using System.Text.RegularExpressions;
 namespace eShop.WebApp.Chatbot;
 
 public abstract record ChatMessagePart;
+
 public record TextMessagePart(string Text) : ChatMessagePart;
+
 public record ImageMessagePart(string Alt, string Url) : ChatMessagePart;
+
 public record LinkMessagePart(string Text, string Url) : ChatMessagePart;
+
 public record AddToCartButtonMessagePart(int ItemId, string ItemName) : ChatMessagePart;
 
 public static partial class MessageProcessor
 {
-    private static readonly Regex AddToCartRegex = new(@"\[([^\]]+)\]\s*\((?:submit:)?add-to-cart:(\d+)\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex AddToCartRegex = new(
+        @"\[([^\]]+)\]\s*\((?:submit:)?add-to-cart:(\d+)\)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase
+    );
 
     public static List<ChatMessagePart> ParseMessage(string message)
     {
         var parts = new List<ChatMessagePart>();
         if (string.IsNullOrEmpty(message))
-        {
             return parts;
-        }
 
         var matches = AddToCartRegex.Matches(message);
         int lastIndex = 0;
 
         foreach (Match match in matches)
         {
-            // Add leading text if any
             if (match.Index > lastIndex)
-            {
-                parts.Add(new TextMessagePart(message.Substring(lastIndex, match.Index - lastIndex)));
-            }
+                parts.Add(
+                    new TextMessagePart(message.Substring(lastIndex, match.Index - lastIndex))
+                );
 
             string text = match.Groups[1].Value;
             string idStr = match.Groups[2].Value;
 
             if (int.TryParse(idStr, out int itemId))
-            {
                 parts.Add(new AddToCartButtonMessagePart(itemId, text));
-            }
             else
-            {
                 parts.Add(new TextMessagePart(match.Value));
-            }
 
             lastIndex = match.Index + match.Length;
         }
 
         if (lastIndex < message.Length)
-        {
             parts.Add(new TextMessagePart(message.Substring(lastIndex)));
-        }
 
         return parts;
     }
@@ -60,61 +58,71 @@ public static partial class MessageProcessor
     public static string FormatMarkdownText(string text)
     {
         if (string.IsNullOrEmpty(text))
-        {
             return string.Empty;
-        }
 
-        // 1. HTML encode to prevent XSS
-        var encoded = System.Net.WebUtility.HtmlEncode(text);
+        // ✅ QUAN TRỌNG: Xử lý markdown TRƯỚC, KHÔNG encode HTML trước
+        // Bug cũ: HtmlEncode() biến [text](url) thành [text]&#40;url&#41; → regex không match được
 
-        // 2. Convert markdown images: ![alt](url) -> <img class="chat-image" />
-        encoded = Regex.Replace(encoded, @"\!\[([^\]]+)\]\(([^)]+)\)", @"<img src=""$2"" alt=""$1"" title=""$1"" class=""chat-image"" />");
+        // 1. Convert markdown images: ![alt](url) → <img />
+        var result = Regex.Replace(
+            text,
+            @"\!\[([^\]]+)\]\(([^)]+)\)",
+            @"<img src=""$2"" alt=""$1"" title=""$1"" class=""chat-image"" />"
+        );
 
-        // 3. Convert standard markdown links: [text](url) -> <a href="url" class="chat-link">text</a>
-        encoded = Regex.Replace(encoded, @"\[([^\]]+)\]\(([^)]+)\)", @"<a href=""$2"" class=""chat-link"" target=""_blank"">$1</a>");
+        // 2. Convert markdown links: [text](url) → <a href>
+        result = Regex.Replace(
+            result,
+            @"\[([^\]]+)\]\(([^)]+)\)",
+            @"<a href=""$2"" class=""chat-link"">$1</a>"
+        );
 
-        // 4. Convert bold text: **text** -> <strong>text</strong>
-        encoded = Regex.Replace(encoded, @"\*\*(.*?)\*\*", "<strong>$1</strong>");
+        // 3. Convert bold: **text** → <strong>
+        result = Regex.Replace(result, @"\*\*(.*?)\*\*", "<strong>$1</strong>");
 
-        // 5. Convert italic text: *text* -> <em>text</em>
-        encoded = Regex.Replace(encoded, @"\*(?!\s)(.*?)(?<!\s)\*", "<em>$1</em>");
+        // 4. Convert italic: *text* → <em>  (tránh nhầm với list bullet *)
+        result = Regex.Replace(
+            result,
+            @"(?<!\*)\*(?!\*)(?!\s)(.*?)(?<!\s)(?<!\*)\*(?!\*)",
+            "<em>$1</em>"
+        );
 
-        // 6. Handle newlines and group lists into ul/li blocks
-        var lines = encoded.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-        var result = new StringBuilder();
+        // 5. Xử lý list và newline
+        var lines = result.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        var sb = new StringBuilder();
         bool inList = false;
 
         foreach (var line in lines)
         {
             var trimmed = line.TrimStart();
-            var match = Regex.Match(trimmed, @"^[\*\-]\s+(.*)$");
-            if (match.Success)
+            var listMatch = Regex.Match(trimmed, @"^[\*\-]\s+(.*)$");
+            if (listMatch.Success)
             {
                 if (!inList)
                 {
-                    result.Append("<ul class=\"chat-list\">");
+                    sb.Append("<ul class=\"chat-list\">");
                     inList = true;
                 }
-                var content = match.Groups[1].Value;
-                result.Append($"<li>{content}</li>");
+                sb.Append($"<li>{listMatch.Groups[1].Value}</li>");
             }
             else
             {
                 if (inList)
                 {
-                    result.Append("</ul>");
+                    sb.Append("</ul>");
                     inList = false;
                 }
-                result.Append(line);
-                result.Append("<br />");
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    sb.Append(line);
+                    sb.Append("<br />");
+                }
             }
         }
 
         if (inList)
-        {
-            result.Append("</ul>");
-        }
+            sb.Append("</ul>");
 
-        return result.ToString();
+        return sb.ToString();
     }
 }

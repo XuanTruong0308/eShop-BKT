@@ -36,11 +36,12 @@ public class ChatState
             CRITICAL SEARCH & TOOL CALLING RULES:
             1. If you decide to call any tool (like `SearchCatalog` or `AddToCart`), you MUST NOT output any conversational text or thoughts in the same turn. Your text response content MUST be empty (null or empty string). You are only allowed to return the tool call. Only after the tool execution is completed and you receive the tool response, you can write the final text response to the user.
             2. The catalog search tool (`SearchCatalog`) only supports search descriptions in English. If the user asks in another language (like Vietnamese), you MUST translate their search query or product description to English before calling `SearchCatalog`.
-            3. Only call the `AddToCart` tool when the user explicitly and directly requests to buy, order, or put a product into the shopping cart (e.g., "mua cái này", "thêm vào giỏ", "đặt mua", "add to cart", "lấy cho tôi").
+            3. Only call the `AddToCart` tool when the user explicitly and directly requests to buy, order, or put a product into the shopping cart using clear purchase-intent words such as: "buy", "add to cart", "order", "mua", "thêm vào giỏ", "đặt mua", "lấy cho tôi", "cho tôi mua", "tôi muốn mua".
             4. NEVER call `AddToCart` if the user is only asking for product details, descriptions, recommendations, links to products, or asking to view more models. In Vietnamese, the word "thêm" can mean "introduce more/show more" (e.g. "thêm các mẫu khác", "giới thiệu thêm"). You must distinguish this: if they want to see more products, use `SearchCatalog` and present them. Do NOT call `AddToCart` in this case.
-            5. If the user asks for a link to a product (e.g., "tôi muốn link", "cho tôi link", "dẫn tới sản phẩm", "Wanderer Black Hiking Boots"), you MUST call `SearchCatalog` (not `AddToCart`), and then return the product formatted as a markdown link `[Product Name](/item/ProductId)`.
-            6. When calling `AddToCart`, the default quantity MUST be 1 unless the user explicitly specifies a larger quantity (e.g., "lấy 2 đôi"). Do not add multiple items automatically.
-            7. Always use the standard JSON tool calling format. NEVER output custom XML-like tags such as `<function=...>` or `<tool_call>`.
+            5. If the user sends ONLY a product name (e.g., "TrailTracker Hiking Shoes") or asks to view/know more about a specific product (e.g., "chi tiết sản phẩm X", "cho tôi biết về X", "TrailTracker Hiking Shoes là gì"), treat it as a request to VIEW product details. Call `SearchCatalog` and return the product info using the required link and Add to Cart button format. NEVER call `AddToCart` in this case. A product name alone is NOT purchase intent.
+            6. If the user asks for a link to a product (e.g., "tôi muốn link", "cho tôi link", "dẫn tới sản phẩm", "Wanderer Black Hiking Boots"), you MUST call `SearchCatalog` (not `AddToCart`), and then return the product formatted as a markdown link `[Product Name](/item/ProductId)`.
+            7. When calling `AddToCart`, the default quantity MUST be 1 unless the user explicitly specifies a larger quantity (e.g., "lấy 2 đôi"). Do not add multiple items automatically.
+            8. Always use the standard JSON tool calling format. NEVER output custom XML-like tags such as `<function=...>` or `<tool_call>`.
 
             CRITICAL CHAT LOOP & HALLUCINATION PREVENTION RULES:
             1. Strictly Grounded Answers: You MUST only answer questions using the catalog data returned by the `SearchCatalog` tool or the listed brands and types. Never make up or hallucinate product details, price, specifications, brands, or IDs. If a product is not found, state clearly that it is not available in the AdventureWorks catalog.
@@ -110,27 +111,11 @@ public class ChatState
             ],
         };
 
-        Messages =
-        [
-            new ChatMessage(
-                ChatRole.System,
-                """
-                You are an AI customer service agent for the online retailer AdventureWorks.
-                You NEVER respond about topics other than AdventureWorks.
-                Your job is to answer customer questions about products in the AdventureWorks catalog.
-                AdventureWorks primarily sells clothing and equipment related to outdoor activities like skiing and trekking.
-                You try to be concise and only provide longer responses if necessary.
-                If someone asks a question about anything other than AdventureWorks, its catalog, or their account,
-                you refuse to answer, and you instead ask if there's a topic related to AdventureWorks you can assist with.
-                """
-            ),
-            new ChatMessage(
-                ChatRole.Assistant,
-                """
-                Hi! I'm the AdventureWorks Concierge. How can I help?
-                """
-            ),
-        ];
+        // ✅ FIX: Khởi tạo Messages rỗng ở đây.
+        // KHÔNG set system prompt trong constructor vì lúc này chưa có brands/types
+        // và chưa có đầy đủ formatting rules.
+        // InitializeAsync() sẽ là nơi DUY NHẤT set system prompt hoàn chỉnh.
+        Messages = [];
     }
 
     public IList<ChatMessage> Messages { get; }
@@ -167,7 +152,7 @@ public class ChatState
             if (savedSession != null && savedSession.Messages.Any())
             {
                 Messages.Clear();
-                // Add the system prompt first
+                // ✅ Luôn dùng _systemPrompt đầy đủ (có brands/types + formatting rules)
                 Messages.Add(new ChatMessage(ChatRole.System, _systemPrompt));
 
                 foreach (var msg in savedSession.Messages)
@@ -190,6 +175,7 @@ public class ChatState
             else
             {
                 Messages.Clear();
+                // ✅ Session mới: set system prompt đầy đủ + greeting
                 Messages.Add(new ChatMessage(ChatRole.System, _systemPrompt));
                 Messages.Add(
                     new ChatMessage(
@@ -202,6 +188,18 @@ public class ChatState
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load chat session from memory.");
+
+            // ✅ Fallback: nếu load session lỗi, vẫn đảm bảo có đủ system prompt
+            if (!Messages.Any())
+            {
+                Messages.Add(new ChatMessage(ChatRole.System, _systemPrompt));
+                Messages.Add(
+                    new ChatMessage(
+                        ChatRole.Assistant,
+                        "Hi! I'm the AdventureWorks Concierge. How can I help?"
+                    )
+                );
+            }
         }
     }
 
@@ -348,7 +346,8 @@ public class ChatState
     [Description("Adds a product to the user's shopping cart.")]
     private async Task<string> AddToCart(
         [Description("The id of the product to add to the shopping cart (basket)")] int itemId,
-        [Description("The quantity of the product to add to the shopping cart (basket)")] int quantity = 1
+        [Description("The quantity of the product to add to the shopping cart (basket)")]
+            int quantity = 1
     )
     {
         try
