@@ -156,6 +156,7 @@ public static class Extensions
                 modelName ??= "gemini-2.5-flash";
 
                 var clientOptions = new global::OpenAI.OpenAIClientOptions { Endpoint = new Uri(endpointUri) };
+                clientOptions.AddPolicy(new LoggingPolicy(), System.ClientModel.Primitives.PipelinePosition.PerCall);
                 if (apiKey.StartsWith("AQ.", StringComparison.OrdinalIgnoreCase))
                 {
                     clientOptions.AddPolicy(new CustomHeaderPolicy(apiKey), System.ClientModel.Primitives.PipelinePosition.PerCall);
@@ -325,6 +326,86 @@ public static class Extensions
             message.Request.Headers.Remove("Authorization");
             await ModifyRequestContentAsync(message, message.CancellationToken).ConfigureAwait(false);
             await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
+        }
+    }
+
+    private class LoggingPolicy : System.ClientModel.Primitives.PipelinePolicy
+    {
+        public override void Process(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
+        {
+            LogRequest(message);
+            ProcessNext(message, pipeline, currentIndex);
+            LogResponse(message);
+        }
+
+        public override async System.Threading.Tasks.ValueTask ProcessAsync(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
+        {
+            await LogRequestAsync(message).ConfigureAwait(false);
+            await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
+            await LogResponseAsync(message).ConfigureAwait(false);
+        }
+
+        private void LogRequest(System.ClientModel.Primitives.PipelineMessage message)
+        {
+            if (message.Request.Content == null) return;
+            try
+            {
+                using var ms = new System.IO.MemoryStream();
+                message.Request.Content.WriteTo(ms, default);
+                var json = System.Text.Encoding.UTF8.GetString(ms.ToArray());
+                Console.WriteLine("=== GROQ HTTP REQUEST ===");
+                Console.WriteLine(json);
+            }
+            catch {}
+        }
+
+        private async System.Threading.Tasks.ValueTask LogRequestAsync(System.ClientModel.Primitives.PipelineMessage message)
+        {
+            if (message.Request.Content == null) return;
+            try
+            {
+                using var ms = new System.IO.MemoryStream();
+                await message.Request.Content.WriteToAsync(ms, default).ConfigureAwait(false);
+                var json = System.Text.Encoding.UTF8.GetString(ms.ToArray());
+                Console.WriteLine("=== GROQ HTTP REQUEST ===");
+                Console.WriteLine(json);
+            }
+            catch {}
+        }
+
+        private void LogResponse(System.ClientModel.Primitives.PipelineMessage message)
+        {
+            if (message.Response == null) return;
+            try
+            {
+                using var ms = new System.IO.MemoryStream();
+                message.Response.ContentStream?.CopyTo(ms);
+                var bytes = ms.ToArray();
+                var json = System.Text.Encoding.UTF8.GetString(bytes);
+                Console.WriteLine("=== GROQ HTTP RESPONSE ===");
+                Console.WriteLine(json);
+                message.Response.ContentStream = new System.IO.MemoryStream(bytes);
+            }
+            catch {}
+        }
+
+        private async System.Threading.Tasks.ValueTask LogResponseAsync(System.ClientModel.Primitives.PipelineMessage message)
+        {
+            if (message.Response == null) return;
+            try
+            {
+                using var ms = new System.IO.MemoryStream();
+                if (message.Response.ContentStream != null)
+                {
+                    await message.Response.ContentStream.CopyToAsync(ms).ConfigureAwait(false);
+                }
+                var bytes = ms.ToArray();
+                var json = System.Text.Encoding.UTF8.GetString(bytes);
+                Console.WriteLine("=== GROQ HTTP RESPONSE ===");
+                Console.WriteLine(json);
+                message.Response.ContentStream = new System.IO.MemoryStream(bytes);
+            }
+            catch {}
         }
     }
 }
