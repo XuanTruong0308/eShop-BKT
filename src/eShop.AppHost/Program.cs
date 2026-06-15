@@ -35,7 +35,7 @@ IResourceBuilder<IResourceWithConnectionString> chatDb;
 if (lowRamMode)
 {
     // Bypass Cosmos Emulator entirely, register a dummy connection string for Catalog API
-    chatDb = builder.AddConnectionString("chatdb", "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob048A12b39hYGSUAh5g5cHAFvFGVIOTDsgjtdyyOxgp7B77Rpp7eu3fjaDTLg1apR6HGBaVg==");
+    chatDb = builder.AddConnectionString("chatdb", cs => cs.Append($"AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob048A12b39hYGSUAh5g5cHAFvFGVIOTDsgjtdyyOxgp7B77Rpp7eu3fjaDTLg1apR6HGBaVg=="));
 }
 else
 {
