@@ -22,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordFocus = FocusNode();
 
   final _identityApi = IdentityApi(
-    NetworkClient(baseUrl: AppConfig.identityUrl, getToken: () async => null),
+    NetworkClient(baseUrl: AppConfig.identityBaseUrl, getToken: () async => null),
   );
 
   bool _isLoading = false;
