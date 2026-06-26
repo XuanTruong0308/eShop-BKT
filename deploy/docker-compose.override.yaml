@@ -1,0 +1,8 @@
+services:
+  mobile-bff:
+    environment:
+      # Cấu hình dự phòng song song 2 cổng cho dịch vụ basket-api
+      # - destination1 trỏ cổng 5221 (cổng thực tế đang chạy trên VPS)
+      # - destination2 trỏ cổng 8080 (cổng cấu hình dự phòng)
+      REVERSEPROXY__CLUSTERS__cluster_basket-api__DESTINATIONS__destination1__ADDRESS: "http://basket-api:5221"
+      REVERSEPROXY__CLUSTERS__cluster_basket-api__DESTINATIONS__destination2__ADDRESS: "http://basket-api:8080"
