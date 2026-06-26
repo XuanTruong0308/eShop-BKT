@@ -376,7 +376,7 @@ class _BasketScreenState extends State<BasketScreen> {
             itemBuilder: (context, index) {
               final item = _basket!.items[index];
               final imageUrl =
-                  'http://localhost:5222/api/catalog/items/${item.productId}/pic?api-version=2.0';
+                  '${AppConfig.apiBaseUrl}/api/catalog/items/${item.productId}/pic?api-version=2.0';
 
               return Semantics(
                 label: 'Sản phẩm: ${item.productName}, Số lượng: ${item.quantity}',

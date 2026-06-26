@@ -255,7 +255,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
             unitPrice: item.price,
             quantity: 1,
             pictureUrl:
-                'http://localhost:5222/api/catalog/items/${item.id}/pic?api-version=2.0',
+                '${AppConfig.apiBaseUrl}/api/catalog/items/${item.id}/pic?api-version=2.0',
           ),
         );
       }
@@ -783,7 +783,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 itemBuilder: (context, index) {
                   final item = _items[index];
                   final imageUrl =
-                      'http://localhost:5222/api/catalog/items/${item.id}/pic?api-version=2.0';
+                      '${AppConfig.apiBaseUrl}/api/catalog/items/${item.id}/pic?api-version=2.0';
 
                   return Semantics(
                     label: 'Sản phẩm: ${item.name}, Giá: ${_currencyFormatter.format(item.price)}',
