@@ -1,4 +1,4 @@
-﻿@page "/checkout"
+@page "/checkout"
 @using System.Globalization
 @using System.ComponentModel.DataAnnotations
 @inject BasketState Basket
@@ -9,7 +9,7 @@
 <SectionContent SectionName="page-header-title">Checkout</SectionContent>
 
 <div class='checkout'>
-    <EditForm EditContext="@editContext" FormName="checkout" OnSubmit="@HandleSubmitAsync" Enhance>
+    <EditForm EditContext="@editContext" FormName="checkout" OnSubmit="@HandleSubmitAsync">
         <DataAnnotationsValidator />
         <div class="form">
             <div class="form-section">

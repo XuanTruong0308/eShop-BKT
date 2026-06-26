@@ -50,7 +50,7 @@ namespace eShop.Identity.API.Configuration
                 {
                     ClientId = "maui",
                     ClientName = "eShop MAUI OpenId Client",
-                    AllowedGrantTypes = GrantTypes.Code,
+                    AllowedGrantTypes = new[] { GrantType.AuthorizationCode, GrantType.ResourceOwnerPassword },
                     //Used to retrieve the access token on the back channel.
                     ClientSecrets = { new Secret("secret".Sha256()) },
                     RedirectUris = { configuration["MauiCallback"] },

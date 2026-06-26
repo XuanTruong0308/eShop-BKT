@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using eShop.Basket.API.Grpc;
 using eShop.WebApp.Services.OrderStatus.IntegrationEvents;
 using eShop.WebAppComponents.Services;
@@ -7,7 +8,6 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.JsonWebTokens;
-using System.Text.Json.Nodes;
 
 public static class Extensions
 {
@@ -29,28 +29,40 @@ public static class Extensions
         builder.AddAIServices();
 
         // HTTP and GRPC client registrations
+        var basketGrpcAddress = builder.Configuration["services:basket-api:grpc:0"]
+            ?? builder.Configuration["services:basket_api:grpc:0"]
+            ?? "http://basket-api:5021";
+
+        if (basketGrpcAddress.StartsWith("grpc://", StringComparison.OrdinalIgnoreCase))
+        {
+            basketGrpcAddress = "http://" + basketGrpcAddress.Substring(7);
+        }
+        else if (basketGrpcAddress.StartsWith("grpcs://", StringComparison.OrdinalIgnoreCase))
+        {
+            basketGrpcAddress = "https://" + basketGrpcAddress.Substring(8);
+        }
+
         builder
-            .Services.AddGrpcClient<Basket.BasketClient>(o => o.Address = new("http://basket-api"))
+            .Services.AddGrpcClient<Basket.BasketClient>(o => o.Address = new(basketGrpcAddress))
             .AddAuthToken();
-        
+
         builder
             .Services.AddHttpClient<CatalogService>(o =>
-                o.BaseAddress = new("https+http://catalog-api")
+                o.BaseAddress = new("http://catalog-api:8080")
             )
             .AddApiVersion(2.0)
             .AddAuthToken();
 
         builder
             .Services.AddHttpClient<OrderingService>(o =>
-                o.BaseAddress = new("https+http://ordering-api")
+                o.BaseAddress = new("http://ordering-api:8080")
             )
             .AddApiVersion(1.0)
             .AddAuthToken();
 
-        // Register DiscountService to Webapp Service Container
         builder
             .Services.AddHttpClient<DiscountService>(o =>
-                o.BaseAddress = new("http://discount-api")
+                o.BaseAddress = new("http://discount-api:8080")
             )
             .AddAuthToken();
     }
@@ -94,7 +106,6 @@ public static class Extensions
         var callBackUrl = configuration.GetRequiredValue("CallBackUrl");
         var sessionCookieLifetime = configuration.GetValue("SessionCookieLifetimeMinutes", 60);
 
-        // Add Authentication services
         services.AddAuthorization();
         services
             .AddAuthentication(options =>
@@ -103,8 +114,11 @@ public static class Extensions
                 options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
             })
             .AddCookie(options =>
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(sessionCookieLifetime)
-            )
+            {
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(sessionCookieLifetime);
+                options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+                options.Cookie.SameSite = SameSiteMode.Lax;
+            })
             .AddOpenIdConnect(options =>
             {
                 options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
@@ -120,9 +134,13 @@ public static class Extensions
                 options.Scope.Add("profile");
                 options.Scope.Add("orders");
                 options.Scope.Add("basket");
+                options.NonceCookie.SameSite = SameSiteMode.Lax;
+                options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                options.NonceCookie.SecurePolicy = CookieSecurePolicy.None;
+                options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.None;
+                options.ResponseMode = "query";
             });
 
-        // Blazor auth services
         services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
         services.AddCascadingAuthenticationState();
     }
@@ -135,31 +153,43 @@ public static class Extensions
             && bool.Parse(ollamaEnabled)
         )
         {
-            builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>("chat", options =>
-            {
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
-                options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(5);
-            });
+            builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>(
+                "chat",
+                options =>
+                {
+                    options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+                    options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(5);
+                }
+            );
             chatClientBuilder = builder.AddOllamaApiClient("chat").AddChatClient();
         }
         else if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("chatModel")))
         {
             var connectionString = builder.Configuration.GetConnectionString("chatModel")!;
-            var parts = connectionString.Split(';')
+            var parts = connectionString
+                .Split(';')
                 .Select(p => p.Split('=', 2))
                 .Where(p => p.Length == 2)
                 .ToDictionary(p => p[0].Trim(), p => p[1].Trim(), StringComparer.OrdinalIgnoreCase);
 
-            if (parts.TryGetValue("Key", out var apiKey) && parts.TryGetValue("Endpoint", out var endpointUri))
+            if (
+                parts.TryGetValue("Key", out var apiKey)
+                && parts.TryGetValue("Endpoint", out var endpointUri)
+            )
             {
                 parts.TryGetValue("Deployment", out var modelName);
                 modelName ??= "gemini-2.5-flash";
 
-                var clientOptions = new global::OpenAI.OpenAIClientOptions { Endpoint = new Uri(endpointUri) };
-                clientOptions.AddPolicy(new LoggingPolicy(), System.ClientModel.Primitives.PipelinePosition.PerCall);
+                var clientOptions = new global::OpenAI.OpenAIClientOptions
+                {
+                    Endpoint = new Uri(endpointUri),
+                };
                 if (apiKey.StartsWith("AQ.", StringComparison.OrdinalIgnoreCase))
                 {
-                    clientOptions.AddPolicy(new CustomHeaderPolicy(apiKey), System.ClientModel.Primitives.PipelinePosition.PerCall);
+                    clientOptions.AddPolicy(
+                        new CustomHeaderPolicy(apiKey),
+                        System.ClientModel.Primitives.PipelinePosition.PerCall
+                    );
                 }
 
                 var openAIClient = new global::OpenAI.OpenAIClient(
@@ -168,7 +198,7 @@ public static class Extensions
                 );
 
                 builder.Services.AddSingleton(openAIClient);
-                chatClientBuilder = builder.Services.AddChatClient(sp => 
+                chatClientBuilder = builder.Services.AddChatClient(sp =>
                     openAIClient.GetChatClient(modelName).AsIChatClient()
                 );
             }
@@ -180,7 +210,10 @@ public static class Extensions
             }
         }
 
-        chatClientBuilder?.UseFunctionInvocation();
+        // ✅ BỎ UseFunctionInvocation() — FunctionInvokingChatClient không tương thích
+        // với Groq API khi build tool result messages nội bộ → HTTP 400 tool_use_failed.
+        // Tool calling được xử lý thủ công trong ChatState.AddUserMessageAsync.
+        // chatClientBuilder?.UseFunctionInvocation();
     }
 
     public static async Task<string?> GetBuyerIdAsync(
@@ -212,40 +245,47 @@ public static class Extensions
 
         private void ModifyRequestContent(System.ClientModel.Primitives.PipelineMessage message)
         {
-            if (message.Request.Content == null) return;
-
+            if (message.Request.Content == null)
+                return;
             try
             {
                 using var ms = new System.IO.MemoryStream();
                 message.Request.Content.WriteTo(ms, default);
                 var bytes = ms.ToArray();
                 var json = System.Text.Encoding.UTF8.GetString(bytes);
-
                 var root = JsonNode.Parse(json);
-                if (root is JsonObject obj && 
-                    obj.TryGetPropertyValue("messages", out var messagesNode) && 
-                    messagesNode is JsonArray messagesArray)
+                if (
+                    root is JsonObject obj
+                    && obj.TryGetPropertyValue("messages", out var messagesNode)
+                    && messagesNode is JsonArray messagesArray
+                )
                 {
                     bool modified = false;
                     foreach (var messageNode in messagesArray)
                     {
                         if (messageNode is JsonObject msgObj)
                         {
-                            if (msgObj.TryGetPropertyValue("role", out var roleVal) && roleVal?.ToString() == "assistant")
+                            if (
+                                msgObj.TryGetPropertyValue("role", out var roleVal)
+                                && roleVal?.ToString() == "assistant"
+                            )
                             {
-                                if (msgObj.TryGetPropertyValue("tool_calls", out var toolCalls) && 
-                                    toolCalls is JsonArray tCalls && tCalls.Count > 0)
+                                if (
+                                    msgObj.TryGetPropertyValue("tool_calls", out var toolCalls)
+                                    && toolCalls is JsonArray tCalls
+                                    && tCalls.Count > 0
+                                )
                                 {
                                     if (!msgObj.ContainsKey("thought_signature"))
                                     {
-                                        msgObj["thought_signature"] = "skip_thought_signature_validator";
+                                        msgObj["thought_signature"] =
+                                            "skip_thought_signature_validator";
                                         modified = true;
                                     }
                                 }
                             }
                         }
                     }
-
                     if (modified)
                     {
                         var modifiedJson = root.ToJsonString();
@@ -255,48 +295,57 @@ public static class Extensions
                     }
                 }
             }
-            catch
-            {
-                // Ignore parsing errors to prevent crashing the request pipeline
-            }
+            catch { }
         }
 
-        private async System.Threading.Tasks.ValueTask ModifyRequestContentAsync(System.ClientModel.Primitives.PipelineMessage message, System.Threading.CancellationToken cancellationToken)
+        private async System.Threading.Tasks.ValueTask ModifyRequestContentAsync(
+            System.ClientModel.Primitives.PipelineMessage message,
+            System.Threading.CancellationToken cancellationToken
+        )
         {
-            if (message.Request.Content == null) return;
-
+            if (message.Request.Content == null)
+                return;
             try
             {
                 using var ms = new System.IO.MemoryStream();
-                await message.Request.Content.WriteToAsync(ms, cancellationToken).ConfigureAwait(false);
+                await message
+                    .Request.Content.WriteToAsync(ms, cancellationToken)
+                    .ConfigureAwait(false);
                 var bytes = ms.ToArray();
                 var json = System.Text.Encoding.UTF8.GetString(bytes);
-
                 var root = JsonNode.Parse(json);
-                if (root is JsonObject obj && 
-                    obj.TryGetPropertyValue("messages", out var messagesNode) && 
-                    messagesNode is JsonArray messagesArray)
+                if (
+                    root is JsonObject obj
+                    && obj.TryGetPropertyValue("messages", out var messagesNode)
+                    && messagesNode is JsonArray messagesArray
+                )
                 {
                     bool modified = false;
                     foreach (var messageNode in messagesArray)
                     {
                         if (messageNode is JsonObject msgObj)
                         {
-                            if (msgObj.TryGetPropertyValue("role", out var roleVal) && roleVal?.ToString() == "assistant")
+                            if (
+                                msgObj.TryGetPropertyValue("role", out var roleVal)
+                                && roleVal?.ToString() == "assistant"
+                            )
                             {
-                                if (msgObj.TryGetPropertyValue("tool_calls", out var toolCalls) && 
-                                    toolCalls is JsonArray tCalls && tCalls.Count > 0)
+                                if (
+                                    msgObj.TryGetPropertyValue("tool_calls", out var toolCalls)
+                                    && toolCalls is JsonArray tCalls
+                                    && tCalls.Count > 0
+                                )
                                 {
                                     if (!msgObj.ContainsKey("thought_signature"))
                                     {
-                                        msgObj["thought_signature"] = "skip_thought_signature_validator";
+                                        msgObj["thought_signature"] =
+                                            "skip_thought_signature_validator";
                                         modified = true;
                                     }
                                 }
                             }
                         }
                     }
-
                     if (modified)
                     {
                         var modifiedJson = root.ToJsonString();
@@ -306,13 +355,14 @@ public static class Extensions
                     }
                 }
             }
-            catch
-            {
-                // Ignore parsing errors
-            }
+            catch { }
         }
 
-        public override void Process(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
+        public override void Process(
+            System.ClientModel.Primitives.PipelineMessage message,
+            System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline,
+            int currentIndex
+        )
         {
             message.Request.Headers.Set("x-goog-api-key", _apiKey);
             message.Request.Headers.Remove("Authorization");
@@ -320,92 +370,17 @@ public static class Extensions
             ProcessNext(message, pipeline, currentIndex);
         }
 
-        public override async System.Threading.Tasks.ValueTask ProcessAsync(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
+        public override async System.Threading.Tasks.ValueTask ProcessAsync(
+            System.ClientModel.Primitives.PipelineMessage message,
+            System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline,
+            int currentIndex
+        )
         {
             message.Request.Headers.Set("x-goog-api-key", _apiKey);
             message.Request.Headers.Remove("Authorization");
-            await ModifyRequestContentAsync(message, message.CancellationToken).ConfigureAwait(false);
+            await ModifyRequestContentAsync(message, message.CancellationToken)
+                .ConfigureAwait(false);
             await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
-        }
-    }
-
-    private class LoggingPolicy : System.ClientModel.Primitives.PipelinePolicy
-    {
-        public override void Process(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
-        {
-            LogRequest(message);
-            ProcessNext(message, pipeline, currentIndex);
-            LogResponse(message);
-        }
-
-        public override async System.Threading.Tasks.ValueTask ProcessAsync(System.ClientModel.Primitives.PipelineMessage message, System.Collections.Generic.IReadOnlyList<System.ClientModel.Primitives.PipelinePolicy> pipeline, int currentIndex)
-        {
-            await LogRequestAsync(message).ConfigureAwait(false);
-            await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
-            await LogResponseAsync(message).ConfigureAwait(false);
-        }
-
-        private void LogRequest(System.ClientModel.Primitives.PipelineMessage message)
-        {
-            if (message.Request.Content == null) return;
-            try
-            {
-                using var ms = new System.IO.MemoryStream();
-                message.Request.Content.WriteTo(ms, default);
-                var json = System.Text.Encoding.UTF8.GetString(ms.ToArray());
-                Console.WriteLine("=== GROQ HTTP REQUEST ===");
-                Console.WriteLine(json);
-            }
-            catch {}
-        }
-
-        private async System.Threading.Tasks.ValueTask LogRequestAsync(System.ClientModel.Primitives.PipelineMessage message)
-        {
-            if (message.Request.Content == null) return;
-            try
-            {
-                using var ms = new System.IO.MemoryStream();
-                await message.Request.Content.WriteToAsync(ms, default).ConfigureAwait(false);
-                var json = System.Text.Encoding.UTF8.GetString(ms.ToArray());
-                Console.WriteLine("=== GROQ HTTP REQUEST ===");
-                Console.WriteLine(json);
-            }
-            catch {}
-        }
-
-        private void LogResponse(System.ClientModel.Primitives.PipelineMessage message)
-        {
-            if (message.Response == null) return;
-            try
-            {
-                using var ms = new System.IO.MemoryStream();
-                message.Response.ContentStream?.CopyTo(ms);
-                var bytes = ms.ToArray();
-                var json = System.Text.Encoding.UTF8.GetString(bytes);
-                Console.WriteLine("=== GROQ HTTP RESPONSE ===");
-                Console.WriteLine(json);
-                message.Response.ContentStream = new System.IO.MemoryStream(bytes);
-            }
-            catch {}
-        }
-
-        private async System.Threading.Tasks.ValueTask LogResponseAsync(System.ClientModel.Primitives.PipelineMessage message)
-        {
-            if (message.Response == null) return;
-            try
-            {
-                using var ms = new System.IO.MemoryStream();
-                if (message.Response.ContentStream != null)
-                {
-                    await message.Response.ContentStream.CopyToAsync(ms).ConfigureAwait(false);
-                }
-                var bytes = ms.ToArray();
-                var json = System.Text.Encoding.UTF8.GetString(bytes);
-                Console.WriteLine("=== GROQ HTTP RESPONSE ===");
-                Console.WriteLine(json);
-                message.Response.ContentStream = new System.IO.MemoryStream(bytes);
-            }
-            catch {}
         }
     }
 }

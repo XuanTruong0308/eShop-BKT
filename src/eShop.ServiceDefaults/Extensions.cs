@@ -36,6 +36,17 @@ public static partial class Extensions
             options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(10);
         });
 
+        // Configure CORS for all microservices in development
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("CorsPolicy", policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyHeader()
+                      .AllowAnyMethod();
+            });
+        });
+
         return builder;
     }
 
@@ -118,6 +129,11 @@ public static partial class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
+        if (app.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>() != null)
+        {
+            app.UseCors("CorsPolicy");
+        }
+
         // Uncomment the following line to enable the Prometheus endpoint (requires the OpenTelemetry.Exporter.Prometheus.AspNetCore package)
         // app.MapPrometheusScrapingEndpoint();
 

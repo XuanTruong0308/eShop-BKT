@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace eShop.Ordering.Domain.AggregatesModel.BuyerAggregate;
 
@@ -30,7 +30,7 @@ public class PaymentMethod : Entity
         }
 
         _alias = alias;
-        _expiration = expiration;
+        _expiration = expiration.Kind == DateTimeKind.Utc ? expiration : DateTime.SpecifyKind(expiration, DateTimeKind.Utc);
         _cardTypeId = cardTypeId;
     }
 

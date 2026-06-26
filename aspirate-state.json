@@ -1,0 +1,18 @@
+{
+  "projectPath": ".\\src\\eShop.AppHost\\eShop.AppHost.csproj",
+  "outputPath": ".\\deploy",
+  "containerImageTags": [
+    "latest"
+  ],
+  "containerBuilder": "docker",
+  "outputFormat": "compose",
+  "parameters": [
+    "OpenAIEndpointParameter=https://api.groq.com/openai/v1",
+    "OpenAIKeyParameter=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",
+    "ChatModelParameter=llama-3.3-70b-versatile",
+    "EmbeddingModelParameter=gemini-embedding-2"
+  ],
+  "disableSecrets": true,
+  "privateRegistryEmail": "aspir8@aka.ms",
+  "includeDashboard": true
+}

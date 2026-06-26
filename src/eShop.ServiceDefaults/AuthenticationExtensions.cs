@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -41,12 +41,13 @@ public static class AuthenticationExtensions
             
 #if DEBUG
             //Needed if using Android Emulator Locally. See https://learn.microsoft.com/en-us/dotnet/maui/data-cloud/local-web-services?view=net-maui-8.0#android
-            options.TokenValidationParameters.ValidIssuers = [identityUrl, "https://10.0.2.2:5243"];
+            options.TokenValidationParameters.ValidIssuers = [identityUrl, "http://localhost:5223", "https://10.0.2.2:5243"];
 #else
             options.TokenValidationParameters.ValidIssuers = [identityUrl];
 #endif
             
             options.TokenValidationParameters.ValidateAudience = false;
+            options.TokenValidationParameters.ClockSkew = TimeSpan.FromHours(5);
         });
 
         services.AddAuthorization();

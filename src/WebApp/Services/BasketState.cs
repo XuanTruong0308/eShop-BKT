@@ -18,7 +18,16 @@ public class BasketState(
     private Task<IReadOnlyCollection<BasketItem>>? _cachedBasket;
     private HashSet<BasketStateChangedSubscription> _changeSubscriptions = new();
 
-    public Task DeleteBasketAsync() => basketService.DeleteBasketAsync();
+    public async Task DeleteBasketAsync()
+    {
+        await basketService.DeleteBasketAsync();
+        _cachedBasket = null;
+        
+        var buyerId = await authenticationStateProvider.GetBuyerIdAsync() ?? "guest";
+        basketUpdateNotifier.NotifyUpdate(buyerId);
+
+        await NotifyChangeSubscribersAsync();
+    }
 
     public async Task<IReadOnlyCollection<BasketItem>> GetBasketItemsAsync() =>
         (await GetUserAsync()).Identity?.IsAuthenticated == true
@@ -87,6 +96,10 @@ public class BasketState(
             await basketService.UpdateBasketAsync(
                 existingItems.Select(i => new BasketQuantity(i.ProductId, i.Quantity)).ToList()
             );
+
+            var buyerId = await authenticationStateProvider.GetBuyerIdAsync() ?? "guest";
+            basketUpdateNotifier.NotifyUpdate(buyerId);
+
             await NotifyChangeSubscribersAsync();
         }
     }

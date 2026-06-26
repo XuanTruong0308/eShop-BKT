@@ -1,0 +1,12 @@
+# melos_managed_dependency_overrides: api_identity,core_network,api_catalog,api_basket,api_ordering
+dependency_overrides:
+  api_basket:
+    path: ..\\..\\packages\\api_basket
+  api_catalog:
+    path: ..\\..\\packages\\api_catalog
+  api_identity:
+    path: ..\\..\\packages\\api_identity
+  api_ordering:
+    path: ..\\..\\packages\\api_ordering
+  core_network:
+    path: ..\\..\\packages\\core_network

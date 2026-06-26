@@ -1,0 +1,5 @@
+name: eshop_flutter
+
+packages:
+  - apps/**
+  - packages/**

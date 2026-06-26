@@ -60,9 +60,6 @@ public static partial class MessageProcessor
         if (string.IsNullOrEmpty(text))
             return string.Empty;
 
-        // ✅ QUAN TRỌNG: Xử lý markdown TRƯỚC, KHÔNG encode HTML trước
-        // Bug cũ: HtmlEncode() biến [text](url) thành [text]&#40;url&#41; → regex không match được
-
         // 1. Convert markdown images: ![alt](url) → <img />
         var result = Regex.Replace(
             text,
@@ -80,7 +77,7 @@ public static partial class MessageProcessor
         // 3. Convert bold: **text** → <strong>
         result = Regex.Replace(result, @"\*\*(.*?)\*\*", "<strong>$1</strong>");
 
-        // 4. Convert italic: *text* → <em>  (tránh nhầm với list bullet *)
+        // 4. Convert italic: *text* → <em> (tránh nhầm với list bullet *)
         result = Regex.Replace(
             result,
             @"(?<!\*)\*(?!\*)(?!\s)(.*?)(?<!\s)(?<!\*)\*(?!\*)",

@@ -1,4 +1,4 @@
-﻿namespace eShop.EventBusRabbitMQ;
+namespace eShop.EventBusRabbitMQ;
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -37,7 +37,12 @@ public sealed class RabbitMQEventBus(
             logger.LogTrace("Creating RabbitMQ channel to publish event: {EventId} ({EventName})", @event.Id, routingKey);
         }
 
-        using var channel = (await _rabbitMQConnection?.CreateChannelAsync()) ?? throw new InvalidOperationException("RabbitMQ connection is not open");
+        if (_rabbitMQConnection is null || !_rabbitMQConnection.IsOpen)
+        {
+            throw new InvalidOperationException("RabbitMQ connection is not open");
+        }
+
+        using var channel = await _rabbitMQConnection.CreateChannelAsync();
 
         if (logger.IsEnabled(LogLevel.Trace))
         {
@@ -228,16 +233,40 @@ public sealed class RabbitMQEventBus(
         // Messaging is async so we don't need to wait for it to complete.
         _ = Task.Factory.StartNew(async () =>
         {
+            logger.LogInformation("Starting RabbitMQ connection on a background thread");
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    _rabbitMQConnection = serviceProvider.GetRequiredService<IConnection>();
+                    if (_rabbitMQConnection.IsOpen)
+                    {
+                        logger.LogInformation("Successfully connected to RabbitMQ");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning("Failed to connect to RabbitMQ, retrying in 5 seconds... Error: {Message}", ex.Message);
+                    try
+                    {
+                        await Task.Delay(5000, cancellationToken);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (cancellationToken.IsCancellationRequested || _rabbitMQConnection is null || !_rabbitMQConnection.IsOpen)
+            {
+                return;
+            }
+
             try
             {
-                logger.LogInformation("Starting RabbitMQ connection on a background thread");
-
-                _rabbitMQConnection = serviceProvider.GetRequiredService<IConnection>();
-                if (!_rabbitMQConnection.IsOpen)
-                {
-                    return;
-                }
-
                 if (logger.IsEnabled(LogLevel.Trace))
                 {
                     logger.LogTrace("Creating RabbitMQ consumer channel");
@@ -286,7 +315,7 @@ public sealed class RabbitMQEventBus(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error starting RabbitMQ connection");
+                logger.LogError(ex, "Error starting RabbitMQ consumer");
             }
         },
         TaskCreationOptions.LongRunning);

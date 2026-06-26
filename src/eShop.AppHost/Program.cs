@@ -2,16 +2,10 @@ using eShop.AppHost;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var lowRamMode = Environment.GetEnvironmentVariable("ESHOP_LOW_RAM") is null 
-                 || !string.Equals(Environment.GetEnvironmentVariable("ESHOP_LOW_RAM"), "false", StringComparison.OrdinalIgnoreCase);
-
-if (!lowRamMode)
-{
-    builder
-        .AddContainer("jaeger", "jaegertracing/all-in-one")
-        .WithEndpoint(port: 4317, targetPort: 4317, name: "otlp")
-        .WithEndpoint(port: 16686, targetPort: 16686, name: "ui");
-}
+var jaeger = builder
+    .AddContainer("jaeger", "jaegertracing/all-in-one")
+    .WithEndpoint(port: 4317, targetPort: 4317, name: "otlp")
+    .WithEndpoint(port: 16686, targetPort: 16686, name: "ui");
 
 builder.AddForwardedHeaders();
 
@@ -30,18 +24,8 @@ var identityDb = postgres.AddDatabase("identitydb");
 var orderDb = postgres.AddDatabase("orderingdb");
 var webhooksDb = postgres.AddDatabase("webhooksdb");
 var discountDb = postgres.AddDatabase("discountdb");
-
-IResourceBuilder<IResourceWithConnectionString> chatDb;
-if (lowRamMode)
-{
-    // Bypass Cosmos Emulator entirely, register a dummy connection string for Catalog API
-    chatDb = builder.AddConnectionString("chatdb", cs => cs.Append($"AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob048A12b39hYGSUAh5g5cHAFvFGVIOTDsgjtdyyOxgp7B77Rpp7eu3fjaDTLg1apR6HGBaVg=="));
-}
-else
-{
-    var cosmos = builder.AddAzureCosmosDB("cosmos").RunAsEmulator();
-    chatDb = cosmos.AddCosmosDatabase("chatdb");
-}
+var cosmos = builder.AddAzureCosmosDB("cosmos").RunAsEmulator();
+var chatDb = cosmos.AddCosmosDatabase("chatdb");
 
 var launchProfileName = ShouldUseHttpForEndpoints() ? "http" : "https";
 
@@ -63,6 +47,7 @@ var identityEndpoint = identityApi.GetEndpoint(launchProfileName);
 
 var basketApi = builder
     .AddProject<Projects.Basket_API>("basket-api")
+    .WithEndpoint(targetPort: 5021, name: "grpc", scheme: "grpc")
     .WithReference(redis)
     .WithReference(rabbitMq)
     .WaitFor(rabbitMq)
@@ -107,10 +92,17 @@ var webHooksApi = builder
     .WithEnvironment("Identity__Url", identityEndpoint);
 
 // Reverse proxies
-builder
-    .AddYarp("mobile-bff")
-    .WithExternalHttpEndpoints()
-    .ConfigureMobileBffRoutes(catalogApi, orderingApi, identityApi);
+var mobileBff = builder.AddYarp("mobile-bff");
+if (builder.ExecutionContext.IsPublishMode)
+{
+    mobileBff.WithEndpoint("http", _ => { });
+}
+else
+{
+    mobileBff.WithEndpoint("http", endpoint => endpoint.Port = 5222);
+}
+mobileBff.WithExternalHttpEndpoints()
+    .ConfigureMobileBffRoutes(catalogApi, orderingApi, identityApi, basketApi);
 
 // Apps
 var webhooksClient = builder

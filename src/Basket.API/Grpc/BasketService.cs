@@ -44,7 +44,7 @@ public class BasketService(
 
         if(logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug("Begin GetItemCount call for basket id {id, ", userId);
+            logger.LogDebug("Begin GetItemCount call for basket id {id}", userId);
         }
 
         var data = await repository.GetBasketAsync(userId);

@@ -3,6 +3,8 @@ using Aspire.Hosting.Lifecycle;
 using Aspire.Hosting.Yarp;
 using Aspire.Hosting.Yarp.Transforms;
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Forwarder;
+using System.Net.Http;
 
 namespace eShop.AppHost;
 
@@ -228,7 +230,8 @@ internal static class Extensions
         this IResourceBuilder<YarpResource> builder,
         IResourceBuilder<ProjectResource> catalogApi,
         IResourceBuilder<ProjectResource> orderingApi,
-        IResourceBuilder<ProjectResource> identityApi
+        IResourceBuilder<ProjectResource> identityApi,
+        IResourceBuilder<ProjectResource> basketApi
     )
     {
         return builder.WithConfiguration(yarp =>
@@ -377,7 +380,19 @@ internal static class Extensions
                 ]);
 
             // Ordering routes
-            yarp.AddRoute("/api/orders/{*any}", orderingApi.GetEndpoint("http"))
+            var orderingCluster = yarp.AddCluster(orderingApi);
+
+            yarp.AddRoute("/api/orders", orderingCluster)
+                .WithMatchRouteQueryParameter([
+                    new()
+                    {
+                        Name = "api-version",
+                        Values = ["1.0", "1"],
+                        Mode = QueryParameterMatchMode.Exact,
+                    },
+                ]);
+
+            yarp.AddRoute("/api/orders/{*any}", orderingCluster)
                 .WithMatchRouteQueryParameter([
                     new()
                     {
@@ -388,8 +403,13 @@ internal static class Extensions
                 ]);
 
             // Identity routes
-            yarp.AddRoute("/identity/{*any}", identityApi.GetEndpoint("http"))
+            var identityCluster = yarp.AddCluster(identityApi);
+            yarp.AddRoute("/identity/{*any}", identityCluster)
                 .WithTransformPathRemovePrefix("/identity");
+
+            var basketCluster = yarp.AddCluster(basketApi);
+            yarp.AddRoute("/api/basket", basketCluster);
+            yarp.AddRoute("/api/basket/{*any}", basketCluster);
         });
     }
 }
