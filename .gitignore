@@ -491,3 +491,7 @@ $RECYCLE.BIN/
 /playwright/.auth/
 /user.json
 .azure
+
+# Allow eShop Flutter packages (override global NuGet packages ignore rule)
+!src/eShop_flutter/packages/
+!src/eShop_flutter/packages/**

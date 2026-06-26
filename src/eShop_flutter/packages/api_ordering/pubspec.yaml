@@ -1,0 +1,21 @@
+name: api_ordering
+description: "A Flutter package for interacting with Ordering.API."
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  core_network:
+    path: ../../packages/core_network
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
